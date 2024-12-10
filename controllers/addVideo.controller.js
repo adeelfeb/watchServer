@@ -164,37 +164,6 @@ const addSummary = asyncHandler(async (req, res) => {
 
 
 
-
-// const addKeyconcept = asyncHandler(async (req, res) => {
-//     const { id, keyconcept } = req.body; // Extract video ID and keyconcept from the request body
-
-//     try {
-//         // Find the video by ID
-//         const video = await Video.findById(id);
-
-//         if (!video) {
-//             return res.status(404).json({ message: "Video not found" });
-//         }
-
-//         // Ensure keyconcept field exists and update it
-//         video.keyconcept.type = keyconcept || "NA"; // Update the keyconcept field or set it to "NA" if not provided
-
-//         // Save the updated video
-//         await video.save();
-
-//         res.status(200).json({
-//             message: "Keyconcept updated successfully",
-//             keyconcept: video.keyconcept.type, // Include updated keyconcept in response
-//         });
-//     } catch (error) {
-//         console.error("Error updating keyconcept:", error); // Log error for debugging
-//         res.status(500).json({
-//             message: "Failed to update keyconcept",
-//             error: error.message,
-//         });
-//     }
-// });
-
 const addKeyconcept = asyncHandler(async (req, res) => {
     const { id, primary, concept, description } = req.body;
   

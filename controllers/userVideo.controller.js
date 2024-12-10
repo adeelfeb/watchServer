@@ -49,7 +49,7 @@ const addVideo = asyncHandler(async (req, res) => {
   // console.log("Inside AddVideo Func")
     const videoUrl = req.body.videoUrl;
     const userId = req.user._id; // Assuming `req.user` is populated by a middleware like `verifyJWT`
-    const apiUrl = config.externalEndpoints.url1 || config.externalEndpoints.url2
+    const apiUrl = config.externalEndpoints.url2 || config.externalEndpoints.url2
   
     if (!videoUrl) {
         throw new ApiError(400, "Please provide a valid video URL");

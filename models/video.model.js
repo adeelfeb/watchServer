@@ -111,7 +111,7 @@ const videoSchema = new Schema(
     transcript: {
       english: [
         {
-          timestamp: [Number], // Array of numbers
+          timestamp: { type: [Number] }, // Array of numbers
           text: { type: String, required: true },
         },
       ],
@@ -185,16 +185,25 @@ videoSchema.methods.fetchVideoDetails = async function () {
 // Helper function to get YouTube video details using ytdl-core
 const getYouTubeVideoDetails = async (url) => {
   try {
-    // Ensure the URL is correctly formatted
+    // Validate URL format
     if (!/^https:\/\/www\.youtube\.com\/watch\?v=/.test(url)) {
       throw new Error("Invalid YouTube URL: " + url);
     }
 
-    // Fetch video info using ytdl-core
+    // Fetch video info
     const info = await ytdl.getInfo(url);
-    const thumbnailUrl = info.videoDetails.thumbnails[0].url;
-    const title = info.videoDetails.title;
-    const durationInSeconds = info.videoDetails.lengthSeconds;
+
+    if (!info.videoDetails) {
+      throw new Error("Video details are not available. The video might be private or deleted.");
+    }
+
+    const thumbnailUrl = info.videoDetails.thumbnails?.[0]?.url || "No Thumbnail Available";
+    const title = info.videoDetails.title || "Untitled Video";
+    const durationInSeconds = parseInt(info.videoDetails.lengthSeconds, 10);
+
+    if (isNaN(durationInSeconds)) {
+      throw new Error("Invalid duration in video details.");
+    }
 
     const minutes = Math.floor(durationInSeconds / 60);
     const seconds = durationInSeconds % 60;
@@ -202,8 +211,10 @@ const getYouTubeVideoDetails = async (url) => {
 
     return { thumbnailUrl, title, duration };
   } catch (error) {
+    console.error("Error in getYouTubeVideoDetails:", error.message); // Log the full error
     throw new Error("Error fetching video details: " + error.message);
   }
 };
+
 
 export const Video = mongoose.model("Video", videoSchema);

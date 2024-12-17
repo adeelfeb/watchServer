@@ -44,10 +44,14 @@ const videoSchema = new Schema(
             Answer: [{ type: String, required: true }], // Array of answers
           },
         ], // Array of objects for questions and answers
-        description: { type: String, default: "No description available" }, // Optional description
+        description: { type: String, default: "No description available yet" }, // Optional description
       },
       default: {}, // Default to an empty object
-    },    
+    },   
+    description:{
+      type: String,
+      default:"No description Available For Now"
+    } ,
     qnas: {
       shortQuestions: [
         {

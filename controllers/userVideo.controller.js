@@ -201,7 +201,7 @@ const keyconcept = asyncHandler(async (req, res) => {
     }
   
     // Extract the transcript (default to English for this example)
-    const keyconcept = video.keyconcept || {};
+    const keyconcept = video.description || {};
   
   
     return res.status(200).json(

@@ -162,51 +162,88 @@ const addSummary = asyncHandler(async (req, res) => {
 });
 
 
-
-
 const addKeyconcept = asyncHandler(async (req, res) => {
-    const { id, primary, concept, description } = req.body;
-  
-    try {
+  const { id, description } = req.body; // Assuming you're only sending primary and description
+
+  try {
       // Find the video by ID
       const video = await Video.findById(id);
-  
+
       if (!video) {
-        return res.status(404).json({ message: "Video not found" });
+          return res.status(404).json({ message: "Video not found" });
       }
-  
-      // Ensure `keyconcept` and its properties exist
-      if (!video.keyconcept) {
-        video.keyconcept = {}; // Initialize if not exists
+
+      
+      
+
+      // Update the primary and description fields in the keyconcept type
+     
+      if (description) {
+        // console.log("the keyconcept send was like this:", description)
+        video.description = description;
       }
-      if (!video.keyconcept.type) {
-        video.keyconcept.type = {}; // Initialize if not exists
-      }
-  
-      // Update primary, description, and concept
-      if (primary) video.keyconcept.type.primary = primary;
-      if (description) video.keyconcept.type.description = description;
-  
-      // Add or update the `concept` field
-      if (concept && Array.isArray(concept)) {
-        video.keyconcept.type.secondary = concept; // Replace existing concepts
-      }
-  
+
       // Save the updated video
       await video.save();
-  
+
       res.status(200).json({
-        message: "Keyconcept updated successfully",
-        keyconcept: video.keyconcept.type, // Include updated keyconcept in response
+          message: "Keyconcept updated successfully",
+          keyconcept: video.description, // Include updated keyconcept in response
       });
-    } catch (error) {
+  } catch (error) {
       console.error("Error updating keyconcept:", error); // Log error for debugging
       res.status(500).json({
-        message: "Failed to update keyconcept",
-        error: error.message,
+          message: "Failed to update keyconcept",
+          error: error.message,
       });
-    }
-  });
+  }
+});
+
+
+// const addKeyconcept = asyncHandler(async (req, res) => {
+//     const { id, primary, concept, description } = req.body;
+//     console.log("Description is:", description)
+  
+//     try {
+//       // Find the video by ID
+//       const video = await Video.findById(id);
+  
+//       if (!video) {
+//         return res.status(404).json({ message: "Video not found" });
+//       }
+  
+//       // Ensure `keyconcept` and its properties exist
+//       if (!video.keyconcept) {
+//         video.keyconcept = {}; // Initialize if not exists
+//       }
+//       if (!video.keyconcept.type) {
+//         video.keyconcept.type = {}; // Initialize if not exists
+//       }
+  
+//       // Update primary, description, and concept
+//       if (primary) video.keyconcept.type.primary = primary;
+//       if (description) video.keyconcept.type.description = description;
+  
+//       // Add or update the `concept` field
+//       // if (concept && Array.isArray(concept)) {
+//       //   video.keyconcept.type.secondary = concept; // Replace existing concepts
+//       // }
+  
+//       // Save the updated video
+//       await video.save();
+  
+//       res.status(200).json({
+//         message: "Keyconcept updated successfully",
+//         keyconcept: video.keyconcept.type, // Include updated keyconcept in response
+//       });
+//     } catch (error) {
+//       console.error("Error updating keyconcept:", error); // Log error for debugging
+//       res.status(500).json({
+//         message: "Failed to update keyconcept",
+//         error: error.message,
+//       });
+//     }
+//   });
   
   
 

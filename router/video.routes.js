@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { addTranscript, addSummary, addQnas, addKeyconcept } from "../controllers/addvideo.controller.js";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { addTranscript, addSummary, addQnas, addKeyconcept } from "../controllers/addVideo.controller.js";
 
 const router = Router();
 

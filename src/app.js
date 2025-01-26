@@ -84,7 +84,7 @@ app.use('/api/v1/auth', authRouter); // Mount the auth routes under '/api/v1/aut
 
 // Default route
 app.get("/", (req, res) => {
-    res.send("Welcome to the API Server! Use /api/v1 for accessing routes.");
+    res.send(`following are the allowed origins: ${config.corsOrigin} ${allowedOrigins}`);
 });
 
 // Import routes

@@ -11,10 +11,43 @@ import authRouter from "../router/auth.routes.js"; // Import auth routes
 const app = express();
 
 // Middleware to enable Cross-Origin Resource Sharing (CORS)
+const allowedOrigins = [
+    "http://localhost:5000",
+    
+    config.corsOrigin
+];
+
+
+// app.use(cors({
+//     origin: '*', // Temporary: Allow all origins
+//     credentials: false,
+// }));
+
+
+// Middleware to enable Cross-Origin Resource Sharing (CORS)
 app.use(cors({
-    origin: config.corsOrigin, 
-    credentials: true, 
+    origin: (origin, callback) => {
+        // Allow requests with no origin (e.g., mobile apps or curl requests)
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    credentials: true, // Allow cookies if needed
+    allowedHeaders: ['X-Requested-With', 'Content-Type', 'Authorization'],
 }));
+
+// Handle preflight requests for all routes
+app.options("*", (req, res) => {
+    res.header("Access-Control-Allow-Origin", req.header("Origin"));
+    res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE");
+    res.header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Authorization");
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.sendStatus(204);
+});
+
 
 // Middleware to parse incoming JSON payloads
 app.use(express.json({

@@ -1,8 +1,8 @@
 import dotenv from "dotenv";
-import connectDB from "./db/index.js";
-import { app } from './app.js';
+import connectDB from "./src/db/index.js";
+import { app } from './src/app.js';
 import ngrok from "ngrok";
-import conf from "./conf.js"
+import conf from "./src/conf.js"
 
 dotenv.config({
     path: './.env'

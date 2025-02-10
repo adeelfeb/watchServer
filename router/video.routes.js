@@ -8,6 +8,7 @@ router.route("/addTranscript").post(addTranscript); // Add transcript endpoint
 router.route("/addSummary").post(addSummary);// Add Summary Route
 router.route("/addQnas").post(addQnas);
 router.route("/addKeyconcept").post(addKeyconcept);
+// router.route("/addAssesment").post(addAssesment);
 
 
 export default router;

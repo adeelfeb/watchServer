@@ -14,7 +14,9 @@ const app = express();
 const allowedOrigins = [
     "http://localhost:5000",
     "https://watch-frontend-ecv4.vercel.app",
-    config.corsOrigin
+    config.corsOrigin,
+    config.externalEndpoints,
+    process.env.EXTERNAL_VIDEO_ENDPOINT
 ];
 
 
@@ -25,19 +27,31 @@ const allowedOrigins = [
 
 
 // Middleware to enable Cross-Origin Resource Sharing (CORS)
+// app.use(cors({
+//     origin: (origin, callback) => {
+//         // Allow requests with no origin (e.g., mobile apps or curl requests)
+//         if (!origin || allowedOrigins.includes(origin)) {
+//             callback(null, true);
+//         } else {
+//             callback(new Error('Not allowed by CORS'));
+//         }
+//     },
+//     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+//     credentials: true, // Allow cookies if needed
+//     allowedHeaders: ['X-Requested-With', 'Content-Type', 'Authorization'],
+// }));
+
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (e.g., mobile apps or curl requests)
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            callback(new Error('Not allowed by CORS'));
+            callback(new Error("Not allowed by CORS"));
         }
     },
-    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-    credentials: true, // Allow cookies if needed
-    allowedHeaders: ['X-Requested-With', 'Content-Type', 'Authorization'],
+    credentials: true,
 }));
+
 
 // Handle preflight requests for all routes
 app.options("*", (req, res) => {
@@ -86,6 +100,37 @@ app.use('/api/v1/auth', authRouter); // Mount the auth routes under '/api/v1/aut
 app.get("/", (req, res) => {
     res.send(`following are the allowed origins: ${config.corsOrigin} ${allowedOrigins}`);
 });
+
+
+// Create a new route to allow dynamic CORS origins
+app.post("/api/v1/allow-origin", (req, res) => {
+    const { url } = req.body;
+
+    // Validate if URL is provided
+    if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+    }
+
+    // Check if the URL is already in the allowedOrigins array
+    if (allowedOrigins.includes(url)) {
+        return res.status(200).json({ message: "URL is already allowed", allowedOrigins });
+    }
+
+    // Add the new URL to the allowedOrigins array
+    allowedOrigins.push(url);
+    
+    // Update the environment variable dynamically
+    process.env.EXTERNAL_VIDEO_ENDPOINT = url;
+    config.externalEndpoints.url1 = `${process.env.EXTERNAL_VIDEO_ENDPOINT}/translate`;
+
+    res.status(201).json({
+        message: "URL added successfully!",
+        allowedOrigins,
+        newExternalEndpoint: config.externalEndpoints.url1
+    });
+});
+
+
 
 // Import routes
 import userRouter from "../router/user.routes.js";

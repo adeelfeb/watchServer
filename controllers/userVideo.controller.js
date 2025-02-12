@@ -8,48 +8,73 @@ import axios from 'axios'; // Importing axios
 import config from "../src/conf.js";
 
 
+// const getWatchHistory = asyncHandler(async (req, res) => {
+//     try {
+//         const user = await User.aggregate([
+//             {
+//                 $match: {
+//                     _id: new mongoose.Types.ObjectId(req.user._id),
+//                 },
+//             },
+//             {
+//                 $lookup: {
+//                     from: "videos",
+//                     localField: "watchHistory",
+//                     foreignField: "_id",
+//                     as: "watchHistory",
+//                 },
+//             },
+//             {
+//                 $project: {
+//                     watchHistory: 1, // Only include watchHistory field
+//                 },
+//             },
+//         ]);
+
+//         if (!user || !user.length) {
+//             return res.status(404).json({ message: "User not found" });
+//         }
+
+//         res.status(200).json(
+//             new ApiResponse(200, user[0].watchHistory, "Watch History Fetched Successfully")
+//         );
+//     } catch (error) {
+//         res.status(500).json({ message: "Failed to fetch watch history", error });
+//     }
+// });
+
 const getWatchHistory = asyncHandler(async (req, res) => {
-    try {
-        const user = await User.aggregate([
-            {
-                $match: {
-                    _id: new mongoose.Types.ObjectId(req.user._id),
-                },
-            },
-            {
-                $lookup: {
-                    from: "videos",
-                    localField: "watchHistory",
-                    foreignField: "_id",
-                    as: "watchHistory",
-                },
-            },
-            {
-                $project: {
-                    watchHistory: 1, // Only include watchHistory field
-                },
-            },
-        ]);
+  try {
+    // console.log("A request has been made")
+      const userHistory = await User.findById(req.user._id)
+          .select("watchHistory")
+          .populate({
+              path: "watchHistory",
+              select: "title duration createdAt thumbnailUrl videoUrl", // Fetch only required fields
+              options: { sort: { createdAt: -1 }, limit: 50 }, // Limit results
+          })
+          .lean(); // Convert to plain JavaScript object (faster than Mongoose objects)
 
-        if (!user || !user.length) {
-            return res.status(404).json({ message: "User not found" });
-        }
+      if (!userHistory) {
+          return res.status(404).json({ message: "User not found" });
+      }
 
-        res.status(200).json(
-            new ApiResponse(200, user[0].watchHistory, "Watch History Fetched Successfully")
-        );
-    } catch (error) {
-        res.status(500).json({ message: "Failed to fetch watch history", error });
-    }
+      res.status(200).json(
+          new ApiResponse(200, userHistory.watchHistory, "Watch History Fetched Successfully")
+      );
+  } catch (error) {
+      res.status(500).json({ message: "Failed to fetch watch history", error });
+  }
 });
+
 
 
 const addVideo = asyncHandler(async (req, res) => {
 
-  // console.log("Inside AddVideo Func")
+  console.log("Inside AddVideo Func")
     const videoUrl = req.body.videoUrl;
     const userId = req.user._id; // Assuming `req.user` is populated by a middleware like `verifyJWT`
-    const apiUrl = config.externalEndpoints.url2 || config.externalEndpoints.url2
+    const apiUrl = config.externalEndpoints.url1 || config.externalEndpoints.url2
   
     if (!videoUrl) {
         throw new ApiError(400, "Please provide a valid video URL");
@@ -201,7 +226,7 @@ const keyconcept = asyncHandler(async (req, res) => {
     }
   
     // Extract the transcript (default to English for this example)
-    const keyconcept = video.description || {};
+    const keyconcept = video.keyconcept || {};
   
   
     return res.status(200).json(
@@ -236,27 +261,32 @@ const keyconcept = asyncHandler(async (req, res) => {
 
 
 
-  const getQnas = asyncHandler(async (req, res) => {
-    const videoId = req.query.videoId || req.body.videoId || req.params;
-  
-    if (!videoId) {
-      throw new ApiError(400, "Video ID is required.");
-    }
-  
-    // Find the video by its ID
-    const video = await Video.findById(videoId);
-  
-    if (!video) {
-      throw new ApiError(404, "Video not found.");
-    }
-  
-    // Extract the QnAs (both short questions and MCQs)
-    const qnas = video.qnas || {};
-  
-    return res.status(200).json(
-      new ApiResponse(200, { qnas: qnas }, "QnAs fetched successfully")
-    );
-  });
+
+
+const getQnas = asyncHandler(async (req, res) => {
+  try {
+      const videoId = req.query.videoId || req.body.videoId || req.params.videoId;
+
+      if (!videoId) {
+          return res.status(400).json({ message: "Video ID is required." });
+      }
+
+      // Find video
+      const video = await Video.findById(videoId);
+      if (!video) {
+          return res.status(404).json({ message: "Video not found." });
+      }
+
+      // Return QnAs
+      return res.status(200).json({
+          message: "QnAs fetched successfully",
+          qnas: video.qnas || { shortQuestions: [], mcqs: [] },
+      });
+  } catch (error) {
+      console.error("Error fetching QnAs:", error.message);
+      return res.status(500).json({ message: "Failed to fetch QnAs", error: error.message });
+  }
+});
 
 
 

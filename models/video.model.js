@@ -4,12 +4,38 @@ import { Innertube } from "youtubei.js"; // Third fallback
 import ytSearch from "yt-search"; // Second fallback
 import play from "play-dl"; // Primary method
 
+
 const videoSchema = new Schema(
   {
     videoUrl: { type: String, required: true, unique: true },
     thumbnailUrl: { type: String, default: "https://havecamerawilltravel.com/wp-content/uploads/2020/01/youtube-thumbnails-size-header-1-800x450.png" },
     title: { type: String, default: "Title Unavailable" },
     duration: { type: String, default: "Unknown" },
+    transcript: {
+      english: [{ timestamp: [Number], text: { type: String, required: true } }],
+      original: [{ timestamp: [Number], text: { type: String, required: true } }],
+    },
+    requestSent: { type: Boolean, default: false },
+    summary: {
+      english: { type: String, default: "NA" },
+      original: { type: String, default: "NA" },
+    },
+    keyconcept: {
+      primary: { type: String, default: "NA" },
+      secondary: [{ Question: { type: String, required: true }, Answer: [{ type: String, required: true }] }],
+      description: { type: String, default: "No description available yet" },
+    },
+    description: { type: String, default: "No description Available For Now" },
+    qnas: {
+      shortQuestions: [{ question: { type: String, required: true }, answer: { type: String } }],
+      mcqs: [
+        {
+          question: { type: String, required: true },
+          options: [{ type: String, required: true }],
+          correctAnswer: { type: String, required: true },
+        },
+      ],
+    },
   },
   { timestamps: true }
 );

@@ -70,58 +70,107 @@ const addVideo = asyncHandler(async (req, res) => {
 });
 
 
+// const addTranscript = asyncHandler(async (req, res) => {
+//     const { id, english, original } = req.body; // Extract ID and possible transcript fields from the request body
+//     console.log("Received request body:", req.body );
+  
+//     try {
+//       // Find the video by ID
+//     //   console.log("The video ID is:", id);
+//       const video = await Video.findById(id);
+  
+//       if (!video) {
+//         return res.status(404).json({ message: "Video not found" });
+//       }
+  
+//       // Validate and update the transcript fields
+//       if (english && Array.isArray(english)) {
+//         video.transcript.english = english.map((item) => {
+//           if (Array.isArray(item.timestamp) && item.text) {
+//             return {
+//               timestamp: item.timestamp, // Expecting an array
+//               text: item.text,
+//             };
+//           }
+//           throw new Error("Invalid format for 'english' transcript: Each item must have an array 'timestamp' and a 'text' field");
+//         });
+//       }
+  
+//       if (original && Array.isArray(original)) {
+//         video.transcript.original = original.map((item) => {
+//           if (Array.isArray(item.timestamp) && item.text) {
+//             return {
+//               timestamp: item.timestamp, // Expecting an array
+//               text: item.text,
+//             };
+//           }
+//           throw new Error("Invalid format for 'original' transcript: Each item must have an array 'timestamp' and a 'text' field");
+//         });
+//       }
+  
+//       // Save the updated video
+//       await video.save();
+  
+//       res.status(200).json({
+//         message: "Transcript updated successfully",
+//       });
+//     } catch (error) {
+//       console.error("Error updating transcript:", error.message);
+//       res.status(500).json({ message: "Failed to update transcript", error: error.message });
+//     }
+//   });
+
+
 const addTranscript = asyncHandler(async (req, res) => {
-    const { id, english, original } = req.body; // Extract ID and possible transcript fields from the request body
-    // console.log("Received request body:", );
+    const { id, english, original } = req.body; // Extract ID and transcript fields
+    // console.log("Received request body:", req.body);
   
     try {
-      // Find the video by ID
-    //   console.log("The video ID is:", id);
-      const video = await Video.findById(id);
+        // Find the video by ID
+        const video = await Video.findById(id);
   
-      if (!video) {
-        return res.status(404).json({ message: "Video not found" });
-      }
-  
-      // Validate and update the transcript fields
-      if (english && Array.isArray(english)) {
-        video.transcript.english = english.map((item) => {
-          if (Array.isArray(item.timestamp) && item.text) {
-            return {
-              timestamp: item.timestamp, // Expecting an array
-              text: item.text,
-            };
-          }
-          throw new Error("Invalid format for 'english' transcript: Each item must have an array 'timestamp' and a 'text' field");
+        if (!video) {
+            return res.status(404).json({ message: "Video not found" });
+        }
+
+        // Ensure video.transcript exists
+        if (!video.transcript) {
+            video.transcript = {}; // Initialize transcript object if undefined
+        }
+
+        // Validate and update the 'english' transcript field
+        if (english && Array.isArray(english)) {
+            video.transcript.english = english
+                .filter(item => Array.isArray(item.timestamp) && item.text) // Ensure valid format
+                .map(item => ({
+                    timestamp: item.timestamp,
+                    text: item.text,
+                }));
+        }
+
+        // Validate and update the 'original' transcript field
+        if (original && Array.isArray(original)) {
+            video.transcript.original = original
+                .filter(item => Array.isArray(item.timestamp) && item.text) // Ensure valid format
+                .map(item => ({
+                    timestamp: item.timestamp,
+                    text: item.text,
+                }));
+        }
+
+        // Save the updated video document
+        await video.save();
+        console.log("done transcript")
+        res.status(200).json({
+            message: "Transcript updated successfully",
         });
-      }
-  
-      if (original && Array.isArray(original)) {
-        video.transcript.original = original.map((item) => {
-          if (Array.isArray(item.timestamp) && item.text) {
-            return {
-              timestamp: item.timestamp, // Expecting an array
-              text: item.text,
-            };
-          }
-          throw new Error("Invalid format for 'original' transcript: Each item must have an array 'timestamp' and a 'text' field");
-        });
-      }
-  
-      // Save the updated video
-      await video.save();
-  
-      res.status(200).json({
-        message: "Transcript updated successfully",
-      });
     } catch (error) {
-      console.error("Error updating transcript:", error.message);
-      res.status(500).json({ message: "Failed to update transcript", error: error.message });
+        console.error("Error updating transcript:", error.message);
+        res.status(500).json({ message: "Failed to update transcript", error: error.message });
     }
-  });
+});
 
 
- 
 const addSummary = asyncHandler(async (req, res) => {
     const { id, original, english, Summary_eng } = req.body; 
     // console.log("Received Summary:", Summary_eng); 
@@ -147,10 +196,8 @@ const addSummary = asyncHandler(async (req, res) => {
 
         // Save the updated video
         await video.save();
+        console.log("Done With Summary")
 
-        // Fetch the updated video to verify the change
-        const updatedVideo = await Video.findById(id);
-        // console.log("Updated video:", updatedVideo);
 
         res.status(200).json({
             message: "Summary updated successfully"
@@ -163,41 +210,86 @@ const addSummary = asyncHandler(async (req, res) => {
 
 
 const addKeyconcept = asyncHandler(async (req, res) => {
-  const { id, description } = req.body; // Assuming you're only sending primary and description
-
-  try {
+    const { id, concept } = req.body;
+    console.log("Received Keyconcept:", req.body);
+  
+    try {
       // Find the video by ID
       const video = await Video.findById(id);
-
+  
       if (!video) {
-          return res.status(404).json({ message: "Video not found" });
+        return res.status(404).json({ message: "Video not found" });
       }
-
-      
-      
-
-      // Update the primary and description fields in the keyconcept type
-     
-      if (description) {
-        // console.log("the keyconcept send was like this:", description)
-        video.description = description;
+  
+      if (concept) {
+        // Directly store the full concept text as primary for Markdown rendering
+        video.keyconcept.primary = concept.trim();
       }
-
+  
       // Save the updated video
       await video.save();
-
+  
       res.status(200).json({
-          message: "Keyconcept updated successfully",
-          keyconcept: video.description, // Include updated keyconcept in response
+        message: "Keyconcept updated successfully",
+        keyconcept: video.keyconcept,
       });
-  } catch (error) {
-      console.error("Error updating keyconcept:", error); // Log error for debugging
+    } catch (error) {
+      console.error("Error updating keyconcept:", error);
       res.status(500).json({
-          message: "Failed to update keyconcept",
-          error: error.message,
+        message: "Failed to update keyconcept",
+        error: error.message,
       });
-  }
-});
+    }
+  });
+  
+
+// const addKeyconcept = asyncHandler(async (req, res) => {
+//     const { id, concept } = req.body;
+//     console.log("Received Keyconcept:", req.body);
+  
+//     try {
+//       // Find the video by ID
+//       const video = await Video.findById(id);
+  
+//       if (!video) {
+//         return res.status(404).json({ message: "Video not found" });
+//       }
+  
+//       if (concept) {
+//         // Store the full text under `primary`
+//         video.keyconcept.primary = concept;
+  
+//         // Regex to extract each concept from the text
+//         const conceptMatches = concept.match(/Concept\s*#\d+:\s*([\s\S]*?)(?=\nConcept\s*#\d+:|\nConclusion:|$)/g);
+  
+//         if (conceptMatches) {
+//           video.keyconcept.secondary = conceptMatches.map((text) => {
+//             // Extract the first line as the title (question) and the rest as the answer
+//             const lines = text.trim().split("\n").filter(Boolean);
+//             const question = lines[0].trim();
+//             const answer = lines.slice(1).join(" ").trim();
+//             return { question, answer: [answer] };
+//           });
+//         }
+//       }
+  
+//       // Save the updated video
+//       await video.save();
+  
+//       res.status(200).json({
+//         message: "Keyconcept updated successfully",
+//         keyconcept: video.keyconcept,
+//       });
+//     } catch (error) {
+//       console.error("Error updating keyconcept:", error);
+//       res.status(500).json({
+//         message: "Failed to update keyconcept",
+//         error: error.message,
+//       });
+//     }
+//   });
+  
+
 
 
 
@@ -240,59 +332,78 @@ const addAssesment = asyncHandler(async (req, res) => {
 });
 
 
-// const addKeyconcept = asyncHandler(async (req, res) => {
-//     const { id, primary, concept, description } = req.body;
-//     console.log("Description is:", description)
+
+// const addQnas = asyncHandler(async (req, res) => {
+//     const { id, Questions, mcqs } = req.body;
+  
+//     if (!id) {
+//         return res.status(400).json({ message: "Video ID is required." });
+//     }
+  
+//     console.log("Incoming Q&A data:", req.body);
   
 //     try {
-//       // Find the video by ID
-//       const video = await Video.findById(id);
+//         // Find video
+//         const video = await Video.findById(id);
+//         if (!video) {
+//             return res.status(404).json({ message: "Video not found." });
+//         }
   
-//       if (!video) {
-//         return res.status(404).json({ message: "Video not found" });
-//       }
+//         // Ensure `qnas` object exists
+//         if (!video.qnas) {
+//             video.qnas = { shortQuestions: [], mcqs: [] };
+//         }
   
-//       // Ensure `keyconcept` and its properties exist
-//       if (!video.keyconcept) {
-//         video.keyconcept = {}; // Initialize if not exists
-//       }
-//       if (!video.keyconcept.type) {
-//         video.keyconcept.type = {}; // Initialize if not exists
-//       }
+//         // Parse `Questions` safely
+//         let parsedQuestions = [];
+//         try {
+//             parsedQuestions = JSON.parse(Questions);
+//             if (!Array.isArray(parsedQuestions)) {
+//                 throw new Error("Questions must be an array.");
+//             }
+//         } catch (error) {
+//             console.error("Error parsing Questions:", error.message);
+//             return res.status(400).json({ message: "Invalid Questions format." });
+//         }
   
-//       // Update primary, description, and concept
-//       if (primary) video.keyconcept.type.primary = primary;
-//       if (description) video.keyconcept.type.description = description;
+//         // Add short questions
+//         parsedQuestions.forEach(({ question }) => {
+//             if (typeof question === "string" && question.trim() !== "") {
+//                 video.qnas.shortQuestions.push({ question, answer: "" });
+//             }
+//         });
   
-//       // Add or update the `concept` field
-//       // if (concept && Array.isArray(concept)) {
-//       //   video.keyconcept.type.secondary = concept; // Replace existing concepts
-//       // }
+//         // Validate and add MCQs
+//         if (Array.isArray(mcqs)) {
+//             mcqs.forEach(({ question, options, correctAnswer }) => {
+//                 if (
+//                     typeof question === "string" &&
+//                     Array.isArray(options) &&
+//                     options.length > 1 &&
+//                     options.includes(correctAnswer)
+//                 ) {
+//                     video.qnas.mcqs.push({ question, options, correctAnswer });
+//                 }
+//             });
+//         } else {
+//             console.warn("MCQs data is missing or incorrectly formatted.");
+//         }
   
-//       // Save the updated video
-//       await video.save();
+//         // Save the updated video document
+//         await video.save();
   
-//       res.status(200).json({
-//         message: "Keyconcept updated successfully",
-//         keyconcept: video.keyconcept.type, // Include updated keyconcept in response
-//       });
+//         return res.status(200).json({
+//             message: "Q&A updated successfully",
+//             qnas: video.qnas,
+//         });
 //     } catch (error) {
-//       console.error("Error updating keyconcept:", error); // Log error for debugging
-//       res.status(500).json({
-//         message: "Failed to update keyconcept",
-//         error: error.message,
-//       });
+//         console.error("Error updating Q&A:", error.message);
+//         return res.status(500).json({ message: "Failed to update Q&A", error: error.message });
 //     }
 //   });
-  
-  
-
-
-
 
 const addQnas = asyncHandler(async (req, res) => {
-    const { id, Questions, mcqs } = req.body; // Extract video ID and possible Q&A fields from the request body
-    console.log("The data to be saved is:", req.body)
+    const { id, Questions, mcqs } = req.body; // Extract video ID and Q&A fields
 
     try {
         // Find the video by ID
@@ -302,11 +413,27 @@ const addQnas = asyncHandler(async (req, res) => {
             return res.status(404).json({ message: "Video not found" });
         }
 
+        // Ensure `video.qnas` exists
+        if (!video.qnas) {
+            video.qnas = { shortQuestions: [], mcqs: [] };
+        }
+
+        // **Fix: Properly Parse `Questions` JSON String**
+        let parsedQuestions = [];
+        try {
+            parsedQuestions = JSON.parse(Questions); // Directly parse without wrapping in []
+        } catch (error) {
+            console.error("Error parsing Questions:", error.message);
+            return res.status(400).json({ message: "Invalid Questions format" });
+        }
+
         // Validate and add short questions if provided
-        if (shortQuestions && Array.isArray(shortQuestions)) {
-            shortQuestions.forEach(({ question, answer }) => {
-                if (question && answer) {
-                    video.qnas.shortQuestions.push({ question, answer });
+        console.log("Before adding QnAs");
+        if (parsedQuestions && Array.isArray(parsedQuestions)) {
+            parsedQuestions.forEach(({ question, answer }) => {
+                console.log("Question:", question, "Answer:", answer);
+                if (question) {
+                    video.qnas.shortQuestions.push({ question, answer: answer || "" }); // Save answer if exists, else empty
                 }
             });
         }
@@ -327,9 +454,54 @@ const addQnas = asyncHandler(async (req, res) => {
             message: "Q&A updated successfully",
         });
     } catch (error) {
-        res.status(500).json({ message: "Failed to update Q&A", error });
+        res.status(500).json({ message: "Failed to update Q&A", error: error.message });
     }
 });
+
+
+
+
+
+// const addQnas = asyncHandler(async (req, res) => {
+//     const { id, Questions, mcqs } = req.body; // Extract video ID and possible Q&A fields from the request body
+//     console.log("The data to be saved is:", req.body)
+
+//     try {
+//         // Find the video by ID
+//         const video = await Video.findById(id);
+
+//         if (!video) {
+//             return res.status(404).json({ message: "Video not found" });
+//         }
+
+//         // Validate and add short questions if provided
+//         if (shortQuestions && Array.isArray(shortQuestions)) {
+//             shortQuestions.forEach(({ question, answer }) => {
+//                 if (question && answer) {
+//                     video.qnas.shortQuestions.push({ question, answer });
+//                 }
+//             });
+//         }
+
+//         // Validate and add MCQs if provided
+//         if (mcqs && Array.isArray(mcqs)) {
+//             mcqs.forEach(({ question, options, correctAnswer }) => {
+//                 if (question && options && correctAnswer && Array.isArray(options)) {
+//                     video.qnas.mcqs.push({ question, options, correctAnswer });
+//                 }
+//             });
+//         }
+
+//         // Save the updated video
+//         await video.save();
+
+//         res.status(200).json({
+//             message: "Q&A updated successfully",
+//         });
+//     } catch (error) {
+//         res.status(500).json({ message: "Failed to update Q&A", error });
+//     }
+// });
 
 
 

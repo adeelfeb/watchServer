@@ -27,7 +27,7 @@ router.route("/logout").post(verifyJWT, logoutUser)
 router.route("/change-password").post(verifyJWT, changeCurrentPassword)
 router.route("/current-user").post(verifyJWT, getCurrentUser)
 router.route("/update-account").patch(verifyJWT, updateAccountDetails)
-router.route("/avatar").patch(verifyJWT, upload.single("avatar"), updateUserAvatar )
+router.route("/update-avatar").patch(verifyJWT, upload.single("avatar"), updateUserAvatar )
 router.route("/cover-image").patch(verifyJWT, upload.single("coverImage"), updateUserCoverImage)
 router.route("/addVideo").post(verifyJWT, addVideo); // Add video endpoint
 

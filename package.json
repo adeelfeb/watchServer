@@ -6,11 +6,13 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon -r dotenv/config index.js",
-    "start": "node -r dotenv/config index.js"
+    "start": "node -r dotenv/config index.js",
+    "ngrok": "ngrok http 3000"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "ngrok": "^5.0.0-beta.2",
     "nodemon": "^3.1.7",
     "prettier": "^3.3.3"
   },
@@ -30,6 +32,10 @@
     "multer": "^1.4.5-lts.1",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
-    "stopword": "^3.1.4"
+    "play-dl": "^1.9.7",
+    "stopword": "^3.1.4",
+    "youtubei.js": "^13.0.0",
+    "yt-search": "^2.12.1",
+    "ytdl-core": "^4.11.5"
   }
 }

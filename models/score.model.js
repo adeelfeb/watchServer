@@ -23,7 +23,7 @@ const scoreSchema = new Schema(
       {
         question: { type: String, required: true },
         selectedOption: { type: String, required: true },
-        correctOption: { type: String, required: true },
+        correctOption: { type: String },
         isCorrect: { type: Boolean, required: true }, // Remains for MCQs as correctness can be determined immediately
       },
     ],

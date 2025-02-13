@@ -29,6 +29,9 @@ const config = {
         url1: `${process.env.EXTERNAL_VIDEO_ENDPOINT}/translate`,
         url2: process.env.EXTERNAL_VIDEO_ENDPOINT2
     },
+    pinecone: {
+        apiKey: process.env.PINECONE_API,
+    },
     googleAuth: {
         clientId: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,

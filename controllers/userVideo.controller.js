@@ -3,45 +3,11 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { Video } from "../models/video.model.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import mongoose from "mongoose";
 import axios from 'axios'; // Importing axios
 import config from "../src/conf.js";
+import { Score } from "../models/score.model.js";
 
 
-// const getWatchHistory = asyncHandler(async (req, res) => {
-//     try {
-//         const user = await User.aggregate([
-//             {
-//                 $match: {
-//                     _id: new mongoose.Types.ObjectId(req.user._id),
-//                 },
-//             },
-//             {
-//                 $lookup: {
-//                     from: "videos",
-//                     localField: "watchHistory",
-//                     foreignField: "_id",
-//                     as: "watchHistory",
-//                 },
-//             },
-//             {
-//                 $project: {
-//                     watchHistory: 1, // Only include watchHistory field
-//                 },
-//             },
-//         ]);
-
-//         if (!user || !user.length) {
-//             return res.status(404).json({ message: "User not found" });
-//         }
-
-//         res.status(200).json(
-//             new ApiResponse(200, user[0].watchHistory, "Watch History Fetched Successfully")
-//         );
-//     } catch (error) {
-//         res.status(500).json({ message: "Failed to fetch watch history", error });
-//     }
-// });
 
 const getWatchHistory = asyncHandler(async (req, res) => {
   try {
@@ -71,7 +37,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
 
 const addVideo = asyncHandler(async (req, res) => {
 
-  console.log("Inside AddVideo Func")
+  // console.log("Inside AddVideo Func")
     const videoUrl = req.body.videoUrl;
     const userId = req.user._id; // Assuming `req.user` is populated by a middleware like `verifyJWT`
     const apiUrl = config.externalEndpoints.url1 || config.externalEndpoints.url2
@@ -290,11 +256,55 @@ const getQnas = asyncHandler(async (req, res) => {
 
 
 
+
+const storeAssessment = asyncHandler(async (req, res) => {
+    try {
+        const videoId = req.query.videoId || req.body.videoId || req.params.videoId;
+        const userId = req.query.userId || req.body.userId || req.params.userId;
+        const submission = req.body.submission;
+
+        if (!videoId || !userId || !submission) {
+            return res.status(400).json({ message: "Video ID, User ID, and submission data are required." });
+        }
+
+        // Find video
+        const video = await Video.findById(videoId);
+        if (!video) {
+            return res.status(404).json({ message: "Video not found." });
+        }
+
+        // Construct score document
+        const scoreData = {
+            user: userId,
+            video: videoId,
+            shortAnswers: submission.shortAnswers || [],
+            mcqs: submission.mcqs || [],
+            score: submission.score || 0, // Default to 0 if not provided
+        };
+
+        // Save the score data
+        const newScore = new Score(scoreData);
+        await newScore.save();
+
+        return res.status(201).json({
+            message: "Assessment stored successfully",
+            score: newScore,
+        });
+    } catch (error) {
+        console.error("Error storing assessment:", error.message);
+        return res.status(500).json({ message: "Failed to store assessment", error: error.message });
+    }
+});
+
+
+
+
 export{
     getWatchHistory,
     addVideo,
     getTranscript,
     getSummary,
     getQnas,
-    keyconcept
+    keyconcept,
+    storeAssessment
 }

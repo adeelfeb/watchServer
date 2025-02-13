@@ -2,7 +2,9 @@ import {Router} from "express"
 import { registerUser,loginWithTempToken,  loginUser, logoutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage } from "../controllers/user.controller.js"
 import { upload } from "../middlewares/multer.middleware.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js"
-import { getWatchHistory, addVideo, getTranscript, getSummary, getQnas, keyconcept } from "../controllers/userVideo.controller.js"
+import { getWatchHistory, addVideo, getTranscript, getSummary, getQnas, keyconcept, storeAssessment } from "../controllers/userVideo.controller.js"
+import { addFileData, getFileHistory, getVectorData } from "../controllers/userFileData.controller.js";
+import { insertChat, getChatHistory } from "../controllers/userChat.controller.js"; 
 
 const router = Router()
 
@@ -38,9 +40,26 @@ router.route("/summary").get(verifyJWT, getSummary);      // Get summary for a v
 router.route("/qnas").get(verifyJWT, getQnas);  
 router.route("/keyconcept").get(verifyJWT, keyconcept);  
 
+//assesment route submission
+router.route("/add-assesment").post(verifyJWT, storeAssessment);  
+
+
+
+// New route for file upload and saving the uplaoded url of file and the specific encoded data
+router.route("/add-file-data").post(verifyJWT, addFileData);
+router.route("/get-vector").post(verifyJWT, getVectorData);
+router.route("/get-file-history").post(verifyJWT, getFileHistory);
+router.route("/insert-chat").post(verifyJWT, insertChat);
+router.route("/get-chat-history").post(verifyJWT, getChatHistory);
+
+
 
 // router.route("/c/:username").get(verifyJWT, getUserChannelProfile)
 router.route("/history").get(verifyJWT, getWatchHistory)
 router.route("/refreshToken").get(verifyJWT, refreshAccessToken)
+
+
+
+
 
 export default router

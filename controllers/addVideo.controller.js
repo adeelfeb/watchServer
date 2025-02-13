@@ -121,14 +121,64 @@ const addVideo = asyncHandler(async (req, res) => {
 //   });
 
 
+// const addTranscript = asyncHandler(async (req, res) => {
+//     const { id, english, original } = req.body; // Extract ID and transcript fields
+//     // console.log("Received request body:", req.body);
+  
+//     try {
+//         // Find the video by ID
+//         const video = await Video.findById(id);
+  
+//         if (!video) {
+//             return res.status(404).json({ message: "Video not found" });
+//         }
+
+//         // Ensure video.transcript exists
+//         if (!video.transcript) {
+//             video.transcript = {}; // Initialize transcript object if undefined
+//         }
+
+//         // Validate and update the 'english' transcript field
+//         if (english && Array.isArray(english)) {
+//             video.transcript.english = english
+//                 .filter(item => Array.isArray(item.timestamp) && item.text) // Ensure valid format
+//                 .map(item => ({
+//                     timestamp: item.timestamp,
+//                     text: item.text,
+//                 }));
+//         }
+
+//         // Validate and update the 'original' transcript field
+//         if (original && Array.isArray(original)) {
+//             video.transcript.original = original
+//                 .filter(item => Array.isArray(item.timestamp) && item.text) // Ensure valid format
+//                 .map(item => ({
+//                     timestamp: item.timestamp,
+//                     text: item.text,
+//                 }));
+//         }
+
+//         // Save the updated video document
+//         await video.save();
+//         console.log("done transcript")
+//         res.status(200).json({
+//             message: "Transcript updated successfully",
+//         });
+//     } catch (error) {
+//         console.error("Error updating transcript:", error.message);
+//         res.status(500).json({ message: "Failed to update transcript", error: error.message });
+//     }
+// });
+
+
+
 const addTranscript = asyncHandler(async (req, res) => {
     const { id, english, original } = req.body; // Extract ID and transcript fields
-    // console.log("Received request body:", req.body);
-  
+
     try {
         // Find the video by ID
         const video = await Video.findById(id);
-  
+
         if (!video) {
             return res.status(404).json({ message: "Video not found" });
         }
@@ -138,7 +188,7 @@ const addTranscript = asyncHandler(async (req, res) => {
             video.transcript = {}; // Initialize transcript object if undefined
         }
 
-        // Validate and update the 'english' transcript field
+        // Validate and update only the 'english' transcript field
         if (english && Array.isArray(english)) {
             video.transcript.english = english
                 .filter(item => Array.isArray(item.timestamp) && item.text) // Ensure valid format
@@ -148,27 +198,42 @@ const addTranscript = asyncHandler(async (req, res) => {
                 }));
         }
 
-        // Validate and update the 'original' transcript field
-        if (original && Array.isArray(original)) {
-            video.transcript.original = original
-                .filter(item => Array.isArray(item.timestamp) && item.text) // Ensure valid format
-                .map(item => ({
-                    timestamp: item.timestamp,
-                    text: item.text,
-                }));
-        }
-
         // Save the updated video document
         await video.save();
-        console.log("done transcript")
+        console.log("Transcript saved to database.");
+
+        // Respond to the client immediately
         res.status(200).json({
             message: "Transcript updated successfully",
         });
+
+        // If there's no English transcript, do not vectorize
+        if (!video.transcript.english || video.transcript.english.length === 0) {
+            console.log(`No English transcript for video ID ${id}, skipping vectorization.`);
+            return;
+        }
+
+        // Extract the full English transcript text for vectorization
+        const fullTranscript = video.transcript.english
+            .map(item => item.text)
+            .join(" ");
+
+        // Call the vectorization function in the background
+        parseAndStoreInPinecone(fullTranscript, id, req.user._id)
+            .then(() => {
+                console.log(`Transcript for video ID ${id} successfully vectorized and stored in Pinecone.`);
+            })
+            .catch((error) => {
+                console.error(`Error vectorizing transcript for video ID ${id}:`, error.message);
+            });
+
     } catch (error) {
         console.error("Error updating transcript:", error.message);
         res.status(500).json({ message: "Failed to update transcript", error: error.message });
     }
 });
+
+
 
 
 const addSummary = asyncHandler(async (req, res) => {
@@ -211,7 +276,7 @@ const addSummary = asyncHandler(async (req, res) => {
 
 const addKeyconcept = asyncHandler(async (req, res) => {
     const { id, concept } = req.body;
-    console.log("Received Keyconcept:", req.body);
+    // console.log("Received Keyconcept:", req.body);
   
     try {
       // Find the video by ID
@@ -228,7 +293,7 @@ const addKeyconcept = asyncHandler(async (req, res) => {
   
       // Save the updated video
       await video.save();
-  
+      console.log("done key-concepts")
       res.status(200).json({
         message: "Keyconcept updated successfully",
         keyconcept: video.keyconcept,
@@ -404,7 +469,7 @@ const addAssesment = asyncHandler(async (req, res) => {
 
 const addQnas = asyncHandler(async (req, res) => {
     const { id, Questions, mcqs } = req.body; // Extract video ID and Q&A fields
-
+    console.log("the data revieved:", req.body)
     try {
         // Find the video by ID
         const video = await Video.findById(id);
@@ -449,7 +514,7 @@ const addQnas = asyncHandler(async (req, res) => {
 
         // Save the updated video
         await video.save();
-
+        console.log("done QNA")
         res.status(200).json({
             message: "Q&A updated successfully",
         });

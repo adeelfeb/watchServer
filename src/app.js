@@ -13,8 +13,10 @@ const app = express();
 // Middleware to enable Cross-Origin Resource Sharing (CORS)
 const allowedOrigins = [
     "http://localhost:5000",
+    "http://localhost:3000",
     "http://localhost:5001",
-    "https://watch-frontend-ecv4.vercel.app",
+    "http://localhost:5173",
+    "https://project-mern-deploy-plum.vercel.app",
     config.corsOrigin,
     config.externalEndpoints,
     process.env.EXTERNAL_VIDEO_ENDPOINT

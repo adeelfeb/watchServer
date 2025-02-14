@@ -12,14 +12,8 @@ const app = express();
 
 // Middleware to enable Cross-Origin Resource Sharing (CORS)
 const allowedOrigins = [
-    "http://localhost:5000",
-    "http://localhost:3000",
-    "http://localhost:5001",
-    "http://localhost:5173",
+   
     "https://project-mern-deploy-plum.vercel.app",
-    "https://project-mern-deploy-plum.vercel.app",
-    "https://project-mern-deploy-plum.vercel.app/login",
-    "https://project-mern-deploy-plum.vercel.app/",
     config.corsOrigin,
     config.externalEndpoints,
     process.env.EXTERNAL_VIDEO_ENDPOINT

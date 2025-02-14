@@ -59,7 +59,7 @@ const startServer = async () => {
     try {
         // Connect to MongoDB
         await connectDB();
-        console.log("⚙️ MongoDB connected successfully!");
+        // console.log("⚙️ MongoDB connected successfully!");
 
         // Start the server
         const port = process.env.PORT || 8000;

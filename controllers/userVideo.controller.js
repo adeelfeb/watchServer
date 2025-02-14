@@ -34,117 +34,166 @@ const getWatchHistory = asyncHandler(async (req, res) => {
 });
 
 
-
 const addVideo = asyncHandler(async (req, res) => {
+  const { videoUrl } = req.body;
+  const userId = req.user._id; 
+  const apiUrl = config.externalEndpoints.url1;
 
-  // console.log("Inside AddVideo Func")
-    const videoUrl = req.body.videoUrl;
-    const userId = req.user._id; // Assuming `req.user` is populated by a middleware like `verifyJWT`
-    const apiUrl = config.externalEndpoints.url1 || config.externalEndpoints.url2
-  
-    if (!videoUrl) {
-        throw new ApiError(400, "Please provide a valid video URL");
-    }
+  console.log("Adding video or checking...");
 
-    // Check if the video exists in the database
-    let video = await Video.findOne({ videoUrl });
+  if (!videoUrl) {
+      throw new ApiError(400, "Please provide a valid video URL");
+  }
 
-    if (!video) {
-        // Video doesn't exist, create a new video entry
-        video = new Video({ videoUrl });
+  // Check if video exists in DB
+  let video = await Video.findOne({ videoUrl });
 
-        // Fetch video details (from YouTube or another source)
-        await video.fetchVideoDetails();
+  if (!video) {
+      // Video doesn't exist → Create a new entry
+      video = new Video({ videoUrl });
 
-        // Save the new video to the database
-        await video.save();
-    }
+      // Fetch video details & save
+      await video.fetchVideoDetails();
+      await video.save();
+  } else if (video.requestSent) {
+      // If request is already sent, return immediately
+      return res.status(200).json(new ApiResponse(200, video, "Video already in database"));
+  }
 
-    // Fetch the user from the database
-    const user = await User.findById(userId).populate("watchHistory");
+  // Fetch user & ensure they exist
+  const user = await User.findById(userId).populate("watchHistory");
+  if (!user) throw new ApiError(404, "User not found");
 
-    if (!user) {
-        throw new ApiError(404, "User not found");
-    }
+  // Check if video is in watch history
+  const alreadyInHistory = user.watchHistory.some(v => v.videoUrl === videoUrl);
 
-    // Check if the video is already in the user's watch history
-    const alreadyInHistory = user.watchHistory.some(
-        (historyItem) => historyItem.videoUrl === videoUrl
-    );
+  if (!alreadyInHistory) {
+      user.watchHistory.push(video._id);
+      await user.save();
+  }
 
-    if (alreadyInHistory) {
-      if (!video.requestSent) {
-        // console.log("This is the ngrok url:", config.ngrokUrl)
-        try {
-              // console.log("Already in the DataBase Before sending Request To external API")
-              const tempResponse = await axios.post(apiUrl , {
-                videoId: video._id,
-                videoUrl: videoUrl,
-                ngrokUrl: config.ngrokUrl // Include ngrok URL in the request
-            });
-            if (tempResponse.data) {
-              // console.log("Response from external API:", tempResponse);
-      
-              // Set requestSent to true after successful response
-              video.requestSent = true;
-      
-              // Save the updated video to the database
-              await video.save();
+  // ✅ Send response to frontend **immediately**
+  res.status(201).json(
+      new ApiResponse(
+          201,
+          video,
+          alreadyInHistory ? "Video already in watch history" : "Video added successfully and included in watch history"
+      )
+  );
+
+  // ✅ Use `setImmediate` to handle the external API request in the background
+  setImmediate(async () => {
+      if (!video.requestSent && apiUrl) {
+          try {
+              console.log("🔄 Sending video data to external API...", apiUrl);
+
+              // Determine the appropriate server URL based on environment
+              const serverUrl = process.env.NODE_ENV === "development" 
+                  ? config.ngrokUrl         // Use ngrok in development
+                  : process.env.RENDER_HOST_URL ; // Use hosting URL in production
+
+              const response = await axios.post(apiUrl, {
+                  videoId: video._id,
+                  videoUrl: videoUrl,
+                  serverUrl: serverUrl  // Dynamically set server URL
+              });
+
+              if (response.data) {
+                  console.log("✅ Request successful. Marking as sent.");
+                  video.requestSent = true;
               } else {
-                  // Handle case where the external API did not respond as expected
-                  throw new ApiError(400, "External API did not return a successful response");
+                  console.warn("⚠️ External API did not return a valid response.");
+                  video.requestSent = false; // Allow retry
               }
-        } catch (error) {
-            // If there is an error, throw an appropriate ApiError
-            throw new ApiError(400, "Unable to send Request to the external API Again");
-        }
-    }
-        return res.status(200).json(
-            new ApiResponse(
-                201, video, "Video already in watch history"
-            )
-        );
-    }
+          } catch (error) {
+              console.error("❌ Error sending request. API might be down.");
+              video.requestSent = false; // Allow retry
+          }
 
-    // Add the video to the user's watch history
-    user.watchHistory.push(video._id);
-    await user.save();
-
-    // Sending a POST request to another endpoint with the videoId and videoUrl
-    try {
-        // console.log("Before sending Request To external API")
-        
-        const tempResponse = await axios.post(apiUrl, {
-            videoId: video._id,
-            videoUrl: videoUrl,
-            ngrokUrl: config.ngrokUrl // Include ngrok URL in the request
-        });
-
-        // Log the full response for debugging
-        if (tempResponse) {
-          // console.log("Response from external API:", tempResponse.data);
-  
-          // Set requestSent to true after successful response
-          video.requestSent = true;
-  
-          // Save the updated video to the database
           await video.save();
-      } else {
-          // Handle case where the external API did not respond as expected
-          throw new ApiError(400, "External API did not return a successful response");
       }
-    } catch (error) {
-        console.error("Error sending video data:", error);
-    }
-
-    res.status(201).json(
-        new ApiResponse(
-            201,
-            video,
-            "Video added successfully and included in watch history"
-        )
-    );
+  });
 });
+
+// const addVideo = asyncHandler(async (req, res) => {
+//   const { videoUrl } = req.body;
+//   const userId = req.user._id; 
+//   const apiUrl =  config.externalEndpoints.url2;
+//   console.log("adding video or checknig")
+//   if (!videoUrl) {
+//       throw new ApiError(400, "Please provide a valid video URL");
+//   }
+
+//   // Check if video exists in DB
+//   let video = await Video.findOne({ videoUrl });
+
+//   if (!video) {
+//       // Video doesn't exist → Create a new entry
+//       video = new Video({ videoUrl });
+
+//       // Fetch video details & save
+//       await video.fetchVideoDetails();
+//       await video.save();
+//   } else if (video.requestSent) {
+//       // If request is already sent, return immediately
+//       return res.status(200).json(new ApiResponse(200, video, "Video already in database"));
+//   }
+
+//   // Fetch user & ensure they exist
+//   const user = await User.findById(userId).populate("watchHistory");
+//   if (!user) throw new ApiError(404, "User not found");
+
+//   // Check if video is in watch history
+//   const alreadyInHistory = user.watchHistory.some(v => v.videoUrl === videoUrl);
+
+//   if (!alreadyInHistory) {
+//       user.watchHistory.push(video._id);
+//       await user.save();
+//   }
+//   if(alreadyInHistory){
+//     console.log("Video in history")
+//   }
+//   // ✅ Send response to frontend **before making API request**
+//   res.status(201).json(
+//       new ApiResponse(
+//           201,
+//           video,
+//           alreadyInHistory ? "Video already in watch history" : "Video added successfully and included in watch history"
+//       )
+//   );
+
+//   // ✅ Send request to external API **after response**
+//   if (!video.requestSent && apiUrl) {
+//     try {
+//         console.log("🔄 Sending video data to external API...", apiUrl);
+
+//         // Determine the appropriate server URL based on environment
+//         const serverUrl = process.env.NODE_ENV === "development" 
+//             ? config.ngrokUrl         // Use ngrok in development
+//             : process.env.RENDER_HOST_URL ; // Use hosting URL in production
+
+//         const response = await axios.post(apiUrl, {
+//             videoId: video._id,
+//             videoUrl: videoUrl,
+//             serverUrl: serverUrl  // Dynamically set server URL
+//         });
+
+//         if (response.data) {
+//             console.log("✅ Request successful. Marking as sent.");
+//             video.requestSent = true;
+//         } else {
+//             console.warn("⚠️ External API did not return a valid response.");
+//             video.requestSent = false; // Allow retry
+//         }
+//     } catch (error) {
+//         console.error("❌ Error sending request. API might be down.");
+//         video.requestSent = false; // Allow retry
+//     }
+
+//     await video.save();
+// }
+
+// });
 
 
 

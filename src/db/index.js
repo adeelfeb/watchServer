@@ -6,7 +6,7 @@ const connectDB = async () => {
     const dockerURI = "mongodb://admin:password@localhost:27017/";
 
     try {
-        console.log("🔄 Attempting to connect to MongoDB Atlas...");
+        // console.log("🔄 Attempting to connect to MongoDB Atlas...");
         const connectionInstance = await mongoose.connect(atlasURI, {
             dbName: DB_NAME,
             serverSelectionTimeoutMS: 5000, // 5 seconds timeout

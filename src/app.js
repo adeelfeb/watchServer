@@ -134,6 +134,9 @@ app.get("/info", (req, res) => {
                     <strong>Node Environment:</strong> ${nodeEnv}
                 </div>
                 <div class="info-item">
+                    <strong>Node Environment:</strong> ${process.env.RENDER_HOST_URL}
+                </div>
+                <div class="info-item">
                     <strong>Allowed Origins:</strong> ${corsOrigin}
                 </div>
                 <div class="info-item">

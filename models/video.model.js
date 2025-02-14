@@ -146,7 +146,7 @@
 import mongoose, { Schema } from "mongoose";
 import play from "play-dl"; // Primary library for development
 import ytdl from "ytdl-core"; // Primary library for production
-import ytSearch from "yt-search"; // Fallback library
+
 
 // Video Schema
 const videoSchema = new Schema(
@@ -242,42 +242,8 @@ const fetchDetailsWithYtdl = async (url) => {
   };
 };
 
-// Fetch video details using yt-search (fallback)
-const fetchDetailsWithYtSearch = async (url) => {
-  console.log("🔍 Fetching video details using yt-search...");
-  const videoId = validateYouTubeUrl(url);
-  const videoInfo = await ytSearch({ videoId });
 
-  if (!videoInfo || !videoInfo.video) throw new Error("No video details found.");
 
-  return {
-    thumbnailUrl: videoInfo.video.thumbnail ||
-      "https://havecamerawilltravel.com/wp-content/uploads/2020/01/youtube-thumbnails-size-header-1-800x450.png",
-    title: videoInfo.video.title || "Title Unavailable",
-    duration: videoInfo.video.timestamp || "Unknown",
-  };
-};
-
-// Get YouTube video details (primary: play-dl in development, ytdl in production, fallback: yt-search)
-// const getYouTubeVideoDetails = async (url) => {
-//   try {
-//     if (process.env.NODE_ENV === 'development') {
-//       console.log("🔍 Attempting to fetch video details with play-dl...");
-//       return await fetchDetailsWithPlayDl(url);
-//     } else {
-//       console.log("🔍 Attempting to fetch video details with ytdl...");
-//       return await fetchDetailsWithYtdl(url);
-//     }
-//   } catch (error) {
-//     console.warn("⚠️ Primary library failed, falling back to yt-search:", error.message);
-//     try {
-//       return await fetchDetailsWithYtSearch(url);
-//     } catch (fallbackError) {
-//       console.error("❌ Fallback library also failed:", fallbackError.message);
-//       throw new Error("Failed to fetch video details after all attempts.");
-//     }
-//   }
-// };
 
 // Get YouTube video details (primary: play-dl in development, ytdl in production)
 const getYouTubeVideoDetails = async (url) => {

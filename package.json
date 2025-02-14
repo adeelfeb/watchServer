@@ -34,8 +34,6 @@
     "passport-google-oauth20": "^2.0.0",
     "play-dl": "^1.9.7",
     "stopword": "^3.1.4",
-    "youtubei.js": "^13.0.0",
-    "yt-search": "^2.12.1",
     "ytdl-core": "^4.11.5"
   }
 }

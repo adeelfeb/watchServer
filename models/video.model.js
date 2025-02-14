@@ -259,6 +259,27 @@ const fetchDetailsWithYtSearch = async (url) => {
 };
 
 // Get YouTube video details (primary: play-dl in development, ytdl in production, fallback: yt-search)
+// const getYouTubeVideoDetails = async (url) => {
+//   try {
+//     if (process.env.NODE_ENV === 'development') {
+//       console.log("🔍 Attempting to fetch video details with play-dl...");
+//       return await fetchDetailsWithPlayDl(url);
+//     } else {
+//       console.log("🔍 Attempting to fetch video details with ytdl...");
+//       return await fetchDetailsWithYtdl(url);
+//     }
+//   } catch (error) {
+//     console.warn("⚠️ Primary library failed, falling back to yt-search:", error.message);
+//     try {
+//       return await fetchDetailsWithYtSearch(url);
+//     } catch (fallbackError) {
+//       console.error("❌ Fallback library also failed:", fallbackError.message);
+//       throw new Error("Failed to fetch video details after all attempts.");
+//     }
+//   }
+// };
+
+// Get YouTube video details (primary: play-dl in development, ytdl in production)
 const getYouTubeVideoDetails = async (url) => {
   try {
     if (process.env.NODE_ENV === 'development') {
@@ -269,13 +290,13 @@ const getYouTubeVideoDetails = async (url) => {
       return await fetchDetailsWithYtdl(url);
     }
   } catch (error) {
-    console.warn("⚠️ Primary library failed, falling back to yt-search:", error.message);
-    try {
-      return await fetchDetailsWithYtSearch(url);
-    } catch (fallbackError) {
-      console.error("❌ Fallback library also failed:", fallbackError.message);
-      throw new Error("Failed to fetch video details after all attempts.");
-    }
+    console.error("❌ Primary library failed. Using default values:", error.message);
+    // Return default values if fetching fails
+    return {
+      thumbnailUrl: "https://havecamerawilltravel.com/wp-content/uploads/2020/01/youtube-thumbnails-size-header-1-800x450.png",
+      title: "Title Unavailable",
+      duration: "Unknown"
+    };
   }
 };
 

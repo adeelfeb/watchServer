@@ -33,31 +33,39 @@ const getWatchHistory = asyncHandler(async (req, res) => {
   }
 });
 
-
 const addVideo = asyncHandler(async (req, res) => {
   const { videoUrl } = req.body;
-  const userId = req.user._id; 
+  const userId = req.user._id;
   const apiUrl = config.externalEndpoints.url1;
 
   console.log("Adding video or checking...");
 
   if (!videoUrl) {
-      throw new ApiError(400, "Please provide a valid video URL");
+    throw new ApiError(400, "Please provide a valid video URL");
   }
 
   // Check if video exists in DB
   let video = await Video.findOne({ videoUrl });
 
   if (!video) {
-      // Video doesn't exist → Create a new entry
-      video = new Video({ videoUrl });
+    // Video doesn't exist → Create a new entry
+    video = new Video({ videoUrl });
 
+    try {
       // Fetch video details & save
       await video.fetchVideoDetails();
-      await video.save();
+    } catch (error) {
+      console.error("❌ Error fetching video details. Using default values:", error.message);
+      // Set default values if fetching fails
+      video.thumbnailUrl = "https://havecamerawilltravel.com/wp-content/uploads/2020/01/youtube-thumbnails-size-header-1-800x450.png";
+      video.title = "Title Unavailable";
+      video.duration = "Unknown";
+    }
+
+    await video.save();
   } else if (video.requestSent) {
-      // If request is already sent, return immediately
-      return res.status(200).json(new ApiResponse(200, video, "Video already in database"));
+    // If request is already sent, return immediately
+    return res.status(200).json(new ApiResponse(200, video, "Video already in database"));
   }
 
   // Fetch user & ensure they exist
@@ -68,50 +76,50 @@ const addVideo = asyncHandler(async (req, res) => {
   const alreadyInHistory = user.watchHistory.some(v => v.videoUrl === videoUrl);
 
   if (!alreadyInHistory) {
-      user.watchHistory.push(video._id);
-      await user.save();
+    user.watchHistory.push(video._id);
+    await user.save();
   }
 
   // ✅ Send response to frontend **immediately**
   res.status(201).json(
-      new ApiResponse(
-          201,
-          video,
-          alreadyInHistory ? "Video already in watch history" : "Video added successfully and included in watch history"
-      )
+    new ApiResponse(
+      201,
+      video,
+      alreadyInHistory ? "Video already in watch history" : "Video added successfully and included in watch history"
+    )
   );
 
   // ✅ Use `setImmediate` to handle the external API request in the background
   setImmediate(async () => {
-      if (!video.requestSent && apiUrl) {
-          try {
-              console.log("🔄 Sending video data to external API...", apiUrl);
+    if (!video.requestSent && apiUrl) {
+      try {
+        console.log("🔄 Sending video data to external API...", apiUrl);
 
-              // Determine the appropriate server URL based on environment
-              const serverUrl = process.env.NODE_ENV === "development" 
-                  ? config.ngrokUrl         // Use ngrok in development
-                  : process.env.RENDER_EXTERNAL_URL; // Use hosting URL in production
+        // Determine the appropriate server URL based on environment
+        const serverUrl = process.env.NODE_ENV === "development"
+          ? config.ngrokUrl // Use ngrok in development
+          : process.env.RENDER_EXTERNAL_URL; // Use hosting URL in production
 
-              const response = await axios.post(apiUrl, {
-                  videoId: video._id,
-                  videoUrl: videoUrl,
-                  serverUrl: serverUrl  // Dynamically set server URL
-              });
+        const response = await axios.post(apiUrl, {
+          videoId: video._id,
+          videoUrl: videoUrl,
+          serverUrl: serverUrl // Dynamically set server URL
+        });
 
-              if (response.data) {
-                  console.log("✅ Request successful. Marking as sent.");
-                  video.requestSent = true;
-              } else {
-                  console.warn("⚠️ External API did not return a valid response.");
-                  video.requestSent = false; // Allow retry
-              }
-          } catch (error) {
-              console.error("❌ Error sending request. API might be down.");
-              video.requestSent = false; // Allow retry
-          }
-
-          await video.save();
+        if (response.data) {
+          console.log("✅ Request successful. Marking as sent.");
+          video.requestSent = true;
+        } else {
+          console.warn("⚠️ External API did not return a valid response.");
+          video.requestSent = false; // Allow retry
+        }
+      } catch (error) {
+        console.error("❌ Error sending request. API might be down:", error.message);
+        video.requestSent = false; // Allow retry
       }
+
+      await video.save();
+    }
   });
 });
 

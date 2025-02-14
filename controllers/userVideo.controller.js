@@ -90,7 +90,7 @@ const addVideo = asyncHandler(async (req, res) => {
               // Determine the appropriate server URL based on environment
               const serverUrl = process.env.NODE_ENV === "development" 
                   ? config.ngrokUrl         // Use ngrok in development
-                  : process.env.RENDER_HOST_URL ; // Use hosting URL in production
+                  : process.env.RENDER_EXTERNAL_URL; // Use hosting URL in production
 
               const response = await axios.post(apiUrl, {
                   videoId: video._id,

@@ -89,7 +89,7 @@ const getVectorData = asyncHandler(async (req, res) => {
   try {
     // Validate request body
     const { fileId, query } = req.body;
-    const userId = req.user._id;
+    
 
     if (!query || typeof query !== "string") {
       return res.status(400).json({
@@ -103,10 +103,10 @@ const getVectorData = asyncHandler(async (req, res) => {
     // Check if fileId exists
     if (!fileId || typeof fileId !== "string") {
       // console.warn("fileId is missing or invalid. Proceeding without fileId.");
-      vectorData = await getVectorFromPinecone(query, userId); // Call without fileId
+      vectorData = await getVectorFromPinecone(query); // Call without fileId
     } else {
       // console.log("fileId exists. Filtering by fileId.");
-      vectorData = await getVectorFromPineconeByFileId(fileId, query, userId); // Call with fileId
+      vectorData = await getVectorFromPineconeByFileId(fileId, query); // Call with fileId
     }
 
     if (!vectorData || vectorData.length === 0) {

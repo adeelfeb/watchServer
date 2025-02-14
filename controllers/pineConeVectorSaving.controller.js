@@ -141,77 +141,128 @@ export const parseAndStoreInPinecone = async (transcript, videoId) => {
 };
 
 
-export const getVectorFromPinecone = async (query, userId) => {
-    try {
-      const userNamespace = `namespace${userId}`;
-      console.log("User namespace:", userNamespace);
-  
-      const index = pc.index(indexName).namespace(userNamespace);
-  
+export const getVectorFromPinecone = async (query) => {
+  try {
       // Step 1: Clean and preprocess the query text
       const cleanedQuery = cleanText(query);
       if (!cleanedQuery || /[^a-zA-Z0-9\s]/.test(cleanedQuery)) {
-        console.warn("Query is empty or invalid. Skipping search.");
-        return [];
+          console.warn("Query is empty or invalid. Skipping search.");
+          return [];
       }
-  
+
       // Step 2: Generate embeddings for the query text
       const queryVector = await generateEmbeddings([cleanedQuery]);
-  
+
       if (!queryVector || queryVector.length === 0) {
-        console.error("Error: Query vector generation failed.");
-        return [];
+          console.error("Error: Query vector generation failed.");
+          return [];
       }
-  
-      // Step 3: Perform vector similarity search in Pinecone
+
+      // Step 3: Initialize the Pinecone index and query within the "transcripts" namespace
+      const index = pc.index(indexName).namespace("transcripts");
+
+      // Step 4: Perform vector similarity search in Pinecone
       const queryResults = await index.query({
-        vector: queryVector[0],
-        topK: 2, // Number of results to return
-        includeMetadata: true,
+          vector: queryVector[0],
+          topK: 2, // Number of results to return
+          includeMetadata: true,
       });
-  
+
       if (!queryResults || !queryResults.matches || queryResults.matches.length === 0) {
-        console.warn("No similarity results found.");
-        return [];
+          console.warn("No similarity results found.");
+          return [];
       }
-  
-      // Step 4: Filter results based on similarity threshold
+
+      // Step 5: Filter results based on similarity threshold
       const threshold = 0.6;
       const filteredResults = queryResults.matches.filter(
-        (match) => match.score >= threshold
+          (match) => match.score >= threshold
       );
-  
+
       if (filteredResults.length === 0) {
-        console.warn("No valid similarity results above threshold.");
-        return [];
+          console.warn("No valid similarity results above threshold.");
+          return [];
       }
-  
-      // Step 5: Return filtered results (ensuring we fetch relevant metadata)
+
+      // Step 6: Return filtered results (ensuring we fetch relevant metadata)
       return filteredResults.map((match) => ({
-        videoId: match.metadata.videoId,
-        chunk: match.metadata.chunk, // The text chunk stored in Pinecone
-        score: match.score,
+          videoId: match.metadata.videoId,
+          chunk: match.metadata.chunk, // The text chunk stored in Pinecone
+          score: match.score,
       }));
-    } catch (error) {
+  } catch (error) {
       console.error("Error in getVectorFromPinecone:", error);
       return [];
-    }
-  };
+  }
+};
+
+
+
+// export const getVectorFromPinecone = async (query, userId) => {
+//     try {
+//       const userNamespace = `namespace${userId}`;
+//       console.log("User namespace:", userNamespace);
+  
+//       const index = pc.index(indexName).namespace(userNamespace);
+  
+//       // Step 1: Clean and preprocess the query text
+//       const cleanedQuery = cleanText(query);
+//       if (!cleanedQuery || /[^a-zA-Z0-9\s]/.test(cleanedQuery)) {
+//         console.warn("Query is empty or invalid. Skipping search.");
+//         return [];
+//       }
+  
+//       // Step 2: Generate embeddings for the query text
+//       const queryVector = await generateEmbeddings([cleanedQuery]);
+  
+//       if (!queryVector || queryVector.length === 0) {
+//         console.error("Error: Query vector generation failed.");
+//         return [];
+//       }
+  
+//       // Step 3: Perform vector similarity search in Pinecone
+//       const queryResults = await index.query({
+//         vector: queryVector[0],
+//         topK: 2, // Number of results to return
+//         includeMetadata: true,
+//       });
+  
+//       if (!queryResults || !queryResults.matches || queryResults.matches.length === 0) {
+//         console.warn("No similarity results found.");
+//         return [];
+//       }
+  
+//       // Step 4: Filter results based on similarity threshold
+//       const threshold = 0.6;
+//       const filteredResults = queryResults.matches.filter(
+//         (match) => match.score >= threshold
+//       );
+  
+//       if (filteredResults.length === 0) {
+//         console.warn("No valid similarity results above threshold.");
+//         return [];
+//       }
+  
+//       // Step 5: Return filtered results (ensuring we fetch relevant metadata)
+//       return filteredResults.map((match) => ({
+//         videoId: match.metadata.videoId,
+//         chunk: match.metadata.chunk, // The text chunk stored in Pinecone
+//         score: match.score,
+//       }));
+//     } catch (error) {
+//       console.error("Error in getVectorFromPinecone:", error);
+//       return [];
+//     }
+//   };
   
 
 
 
 
-
-
-
-
-export const getVectorFromPineconeByFileId = async (fileId, query, userId) => {
+export const getVectorFromPineconeByFileId = async (fileId, query) => {
   try {
-    const userNameSpace = `namespace${userId}`;
-    // console.log("Inside the get vetor by File Id:", fileId)
-    // Initialize the Pinecone index with the specified namespace
-    const index = pc.index(indexName).namespace(userNameSpace);
+    // Initialize the Pinecone index within the "transcripts" namespace
+    const index = pc.index(indexName).namespace("transcripts");
 
     // Clean the query text
     const cleanedQuery = cleanText(query);
@@ -219,11 +270,11 @@ export const getVectorFromPineconeByFileId = async (fileId, query, userId) => {
     // Check if the query is empty or contains only random symbols
     if (!cleanedQuery || /[^a-zA-Z0-9\s]/.test(cleanedQuery)) {
       console.warn("Query is empty or contains random symbols. Skipping search.");
-      return []; // Handle this case accordingly
+      return [];
     }
 
     // Generate query embedding for the cleaned query
-    const queryVector = await generateEmbeddings([cleanedQuery]); // Generate embedding for the single cleaned query
+    const queryVector = await generateEmbeddings([cleanedQuery]);
 
     if (!queryVector || queryVector.length === 0) {
       console.error("Error: Query vector generation failed.");
@@ -235,9 +286,7 @@ export const getVectorFromPineconeByFileId = async (fileId, query, userId) => {
       vector: queryVector[0], // Pass the single query vector
       topK: 2, // Number of results to return
       includeMetadata: true,
-      filter: {
-        fileId: fileId, // Filter results by fileId
-      },
+      filter: { fileId }, // Filter results by fileId
     });
 
     if (!queryResults || !queryResults.matches || queryResults.matches.length === 0) {
@@ -253,13 +302,74 @@ export const getVectorFromPineconeByFileId = async (fileId, query, userId) => {
 
     if (filteredResults.length === 0) {
       console.warn("No valid similarity results above the threshold.");
-      return []; // No valid results above the threshold
+      return [];
     }
 
     // Return the filtered match data
-    return filteredResults; // Send back the filtered data
+    return filteredResults;
   } catch (error) {
     console.error("Error in getVectorFromPineconeByFileId:", error);
     return [];
   }
 };
+
+
+
+
+// export const getVectorFromPineconeByFileId = async (fileId, query, userId) => {
+//   try {
+//     const userNameSpace = `namespace${userId}`;
+//     // console.log("Inside the get vetor by File Id:", fileId)
+//     // Initialize the Pinecone index with the specified namespace
+//     const index = pc.index(indexName).namespace(userNameSpace);
+
+//     // Clean the query text
+//     const cleanedQuery = cleanText(query);
+
+//     // Check if the query is empty or contains only random symbols
+//     if (!cleanedQuery || /[^a-zA-Z0-9\s]/.test(cleanedQuery)) {
+//       console.warn("Query is empty or contains random symbols. Skipping search.");
+//       return []; // Handle this case accordingly
+//     }
+
+//     // Generate query embedding for the cleaned query
+//     const queryVector = await generateEmbeddings([cleanedQuery]); // Generate embedding for the single cleaned query
+
+//     if (!queryVector || queryVector.length === 0) {
+//       console.error("Error: Query vector generation failed.");
+//       return [];
+//     }
+
+//     // Perform vector similarity search with the query vector
+//     const queryResults = await index.query({
+//       vector: queryVector[0], // Pass the single query vector
+//       topK: 2, // Number of results to return
+//       includeMetadata: true,
+//       filter: {
+//         fileId: fileId, // Filter results by fileId
+//       },
+//     });
+
+//     if (!queryResults || !queryResults.matches || queryResults.matches.length === 0) {
+//       console.warn("No similarity results found. Consider revising the query or embeddings.");
+//       return [];
+//     }
+
+//     // Set a threshold for similarity score (e.g., only accept matches with score > 0.6)
+//     const threshold = 0.6;
+//     const filteredResults = queryResults.matches.filter(
+//       (match) => match.score >= threshold
+//     );
+
+//     if (filteredResults.length === 0) {
+//       console.warn("No valid similarity results above the threshold.");
+//       return []; // No valid results above the threshold
+//     }
+
+//     // Return the filtered match data
+//     return filteredResults; // Send back the filtered data
+//   } catch (error) {
+//     console.error("Error in getVectorFromPineconeByFileId:", error);
+//     return [];
+//   }
+// };

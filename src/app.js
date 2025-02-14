@@ -83,7 +83,75 @@ app.use('/api/v1/auth', authRouter); // Mount the auth routes under '/api/v1/aut
 
 // Default route
 app.get("/", (req, res) => {
-    res.send(`following are the allowed origins: ${config.corsOrigin} ${allowedOrigins}`);
+    res.send(`working`);
+});
+
+app.get("/info", (req, res) => {
+    const nodeEnv = process.env.NODE_ENV || 'development'; // Default to 'development' if NODE_ENV is not set
+    const corsOrigin = allowedOrigins.join(', '); // Convert array to a comma-separated string
+
+    // HTML response with basic technical info
+    const htmlResponse = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Server Information</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    padding: 0;
+                    background-color: #f4f4f9;
+                    color: #333;
+                }
+                h1 {
+                    color: #444;
+                }
+                .info-container {
+                    background: #fff;
+                    padding: 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                    max-width: 600px;
+                    margin: 0 auto;
+                }
+                .info-item {
+                    margin-bottom: 15px;
+                }
+                .info-item strong {
+                    display: inline-block;
+                    width: 150px;
+                    color: #555;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="info-container">
+                <h1>Server Information</h1>
+                <div class="info-item">
+                    <strong>Node Environment:</strong> ${nodeEnv}
+                </div>
+                <div class="info-item">
+                    <strong>Allowed Origins:</strong> ${corsOrigin}
+                </div>
+                <div class="info-item">
+                    <strong>Technical Info:</strong>
+                    <ul>
+                        <li>Always validate user input to prevent security vulnerabilities.</li>
+                        <li>Use environment variables for sensitive data like API keys.</li>
+                        <li>Ensure proper error handling to avoid crashing the server.</li>
+                        <li>Use CORS to restrict access to trusted domains.</li>
+                        <li>Keep dependencies updated to avoid security risks.</li>
+                    </ul>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+
+    res.send(htmlResponse);
 });
 
 

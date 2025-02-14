@@ -143,13 +143,9 @@
 
 
 
-
-
-
-
-
 import mongoose, { Schema } from "mongoose";
-import play from "play-dl"; // Primary library
+import play from "play-dl"; // Primary library for development
+import ytdl from "ytdl-core"; // Primary library for production
 import ytSearch from "yt-search"; // Fallback library
 
 // Video Schema
@@ -214,7 +210,7 @@ const validateYouTubeUrl = (url) => {
   return match[1]; // Extract video ID
 };
 
-// Fetch video details using play-dl (primary)
+// Fetch video details using play-dl (development)
 const fetchDetailsWithPlayDl = async (url) => {
   console.log("🔍 Fetching video details using play-dl...");
   const videoId = validateYouTubeUrl(url);
@@ -227,6 +223,22 @@ const fetchDetailsWithPlayDl = async (url) => {
       "https://havecamerawilltravel.com/wp-content/uploads/2020/01/youtube-thumbnails-size-header-1-800x450.png",
     title: videoInfo.video_details.title || "Title Unavailable",
     duration: videoInfo.video_details.durationRaw || "Unknown",
+  };
+};
+
+// Fetch video details using ytdl (production)
+const fetchDetailsWithYtdl = async (url) => {
+  console.log("🔍 Fetching video details using ytdl...");
+  const videoId = validateYouTubeUrl(url);
+  const videoInfo = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
+
+  if (!videoInfo || !videoInfo.videoDetails) throw new Error("No video details found.");
+
+  return {
+    thumbnailUrl: videoInfo.videoDetails.thumbnails[0]?.url ||
+      "https://havecamerawilltravel.com/wp-content/uploads/2020/01/youtube-thumbnails-size-header-1-800x450.png",
+    title: videoInfo.videoDetails.title || "Title Unavailable",
+    duration: videoInfo.videoDetails.lengthSeconds || "Unknown",
   };
 };
 
@@ -246,19 +258,28 @@ const fetchDetailsWithYtSearch = async (url) => {
   };
 };
 
-// Get YouTube video details (primary: play-dl, fallback: yt-search)
+// Get YouTube video details (primary: play-dl in development, ytdl in production, fallback: yt-search)
 const getYouTubeVideoDetails = async (url) => {
   try {
-    console.log("🔍 Attempting to fetch video details with play-dl...");
-    return await fetchDetailsWithPlayDl(url);
+    if (process.env.NODE_ENV === 'development') {
+      console.log("🔍 Attempting to fetch video details with play-dl...");
+      return await fetchDetailsWithPlayDl(url);
+    } else {
+      console.log("🔍 Attempting to fetch video details with ytdl...");
+      return await fetchDetailsWithYtdl(url);
+    }
   } catch (error) {
-    console.warn("⚠️ play-dl failed, falling back to yt-search:", error.message);
-    return await fetchDetailsWithYtSearch(url);
+    console.warn("⚠️ Primary library failed, falling back to yt-search:", error.message);
+    try {
+      return await fetchDetailsWithYtSearch(url);
+    } catch (fallbackError) {
+      console.error("❌ Fallback library also failed:", fallbackError.message);
+      throw new Error("Failed to fetch video details after all attempts.");
+    }
   }
 };
 
 // Add Video Function
-
 
 export default getYouTubeVideoDetails;
 export const Video = mongoose.model("Video", videoSchema);

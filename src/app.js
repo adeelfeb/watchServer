@@ -26,27 +26,6 @@ const allowedOrigins = [
 ];
 
 
-// app.use(cors({
-//     origin: '*', // Temporary: Allow all origins
-//     credentials: false,
-// }));
-
-
-// Middleware to enable Cross-Origin Resource Sharing (CORS)
-// app.use(cors({
-//     origin: (origin, callback) => {
-//         // Allow requests with no origin (e.g., mobile apps or curl requests)
-//         if (!origin || allowedOrigins.includes(origin)) {
-//             callback(null, true);
-//         } else {
-//             callback(new Error('Not allowed by CORS'));
-//         }
-//     },
-//     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-//     credentials: true, // Allow cookies if needed
-//     allowedHeaders: ['X-Requested-With', 'Content-Type', 'Authorization'],
-// }));
-
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin || allowedOrigins.includes(origin)) {

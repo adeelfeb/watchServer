@@ -281,7 +281,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
-    console.log("Inside the change password:", req.body)
+    // console.log("Inside the change password:", req.body)
 
     // Find the user from the database and ensure it's awaited
     const user = await User.findById(req.user?._id);

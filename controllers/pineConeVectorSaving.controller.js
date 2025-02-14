@@ -49,7 +49,56 @@ const splitTextIntoChunks = (text, chunkSize = 500) => {
 };
 
 // Function to parse and store vectors in Pinecone
-export const parseAndStoreInPinecone = async (transcript, videoId, userId) => {
+// export const parseAndStoreInPinecone = async (transcript, videoId, userId) => {
+//   try {
+//     // Step 1: Validate the transcript
+//     if (!transcript || transcript.trim() === "") {
+//       throw new Error("Transcript is empty or invalid.");
+//     }
+
+//     // Step 2: Clean the transcript
+//     const cleanedText = cleanText(transcript);
+//     // console.log("Transcript cleaned successfully.");
+
+//     // Step 3: Split text into chunks
+//     const chunks = splitTextIntoChunks(cleanedText);
+//     console.log(`Transcript split into ${chunks.length} chunks.`);
+
+//     // Step 4: Generate embeddings for each chunk
+//     const embeddings = await generateEmbeddings(chunks);
+
+//     if (!embeddings || embeddings.length === 0) {
+//       throw new Error("Embedding generation failed or produced empty vectors.");
+//     }
+//     // console.log("Embeddings generated successfully.");
+
+//     // Step 5: Initialize the Pinecone index
+//     const index = pc.index(indexName);
+
+//     // Step 6: Save vectors to Pinecone under the user's namespace
+//     const namespaceName = `namespace${userId}`;
+//     console.log("The namespace is ", namespaceName);
+
+//     const vectors = chunks.map((chunk, idx) => ({
+//       id: `${videoId}_chunk_${idx}`, // Unique ID for each chunk
+//       values: embeddings[idx],
+//       metadata: { videoId, chunk, userId },
+//     }));
+
+//     // Upsert vectors in Pinecone
+//     await index.namespace(namespaceName).upsert(vectors);
+
+//     console.log(`Saved ${vectors.length} vectors to Pinecone for video ID: ${videoId}`);
+//     return videoId;
+//   } catch (error) {
+//     console.error(`Error processing video with ID: ${videoId}`, error.message);
+//     throw new Error("Error during vectorization and Pinecone storage.");
+//   }
+// };
+
+
+
+export const parseAndStoreInPinecone = async (transcript, videoId) => {
   try {
     // Step 1: Validate the transcript
     if (!transcript || transcript.trim() === "") {
@@ -58,11 +107,10 @@ export const parseAndStoreInPinecone = async (transcript, videoId, userId) => {
 
     // Step 2: Clean the transcript
     const cleanedText = cleanText(transcript);
-    // console.log("Transcript cleaned successfully.");
 
     // Step 3: Split text into chunks
     const chunks = splitTextIntoChunks(cleanedText);
-    console.log(`Transcript split into ${chunks.length} chunks.`);
+    // console.log(`Transcript split into ${chunks.length} chunks.`);
 
     // Step 4: Generate embeddings for each chunk
     const embeddings = await generateEmbeddings(chunks);
@@ -70,93 +118,27 @@ export const parseAndStoreInPinecone = async (transcript, videoId, userId) => {
     if (!embeddings || embeddings.length === 0) {
       throw new Error("Embedding generation failed or produced empty vectors.");
     }
-    // console.log("Embeddings generated successfully.");
 
     // Step 5: Initialize the Pinecone index
     const index = pc.index(indexName);
 
-    // Step 6: Save vectors to Pinecone under the user's namespace
-    const namespaceName = `namespace${userId}`;
-    console.log("The namespace is ", namespaceName);
-
+    // Step 6: Save vectors to Pinecone (without userId)
     const vectors = chunks.map((chunk, idx) => ({
       id: `${videoId}_chunk_${idx}`, // Unique ID for each chunk
       values: embeddings[idx],
-      metadata: { videoId, chunk, userId },
+      metadata: { videoId, chunk }, // Removed userId from metadata
     }));
 
-    // Upsert vectors in Pinecone
-    await index.namespace(namespaceName).upsert(vectors);
+    // Upsert vectors in Pinecone under a generic namespace
+    await index.namespace("transcripts").upsert(vectors);
 
-    console.log(`Saved ${vectors.length} vectors to Pinecone for video ID: ${videoId}`);
+    // console.log(`Saved ${vectors.length} vectors to Pinecone for video ID: ${videoId}`);
     return videoId;
   } catch (error) {
     console.error(`Error processing video with ID: ${videoId}`, error.message);
     throw new Error("Error during vectorization and Pinecone storage.");
   }
 };
-
-
-
-// export const getVectorFromPinecone = async ( query, userId) => {
-//   try {
-//     const userNameSpace = `namespace${userId}`;
-//     // console.log("User namespace:", userNameSpace);
-
-//     const index = pc.index(indexName).namespace(userNameSpace);
-
-//     // Clean the query text
-//     const cleanedQuery = cleanText(query);
-//     // console.log("Cleaned query:", cleanedQuery);
-
-//     // Check if the query is empty or contains only random symbols (basic check)
-//     if (!cleanedQuery || /[^a-zA-Z0-9\s]/.test(cleanedQuery)) {
-//       console.warn("Query is empty or contains random symbols. Skipping search.");
-//       return []; // You can handle this case accordingly
-//     }
-
-//     // Generate query embedding for the entire query
-//     const queryVector = await generateEmbeddings([cleanedQuery]); // Generate embedding for the single cleaned query
-
-//     if (!queryVector || queryVector.length === 0) {
-//       console.error("Error: Query vector generation failed.");
-//       return [];
-//     }
-
-//     // console.log("The query vector is:", queryVector);
-
-//     // Perform vector similarity search
-//     const queryResults = await index.query({
-//       vector: queryVector[0], // Pass the single query vector
-//       topK: 2, // Number of results to return
-//       includeMetadata: true,
-//     });
-
-//     if (!queryResults || !queryResults.matches || queryResults.matches.length === 0) {
-//       console.warn("No similarity results found. Consider revising the query or embeddings.");
-//       return [];
-//     }
-
-//     // Set a threshold for similarity score (e.g., only accept matches with score > 0.5)
-//     const threshold = 0.6;
-//     const filteredResults = queryResults.matches.filter(
-//       (match) => match.score >= threshold
-//     );
-
-//     if (filteredResults.length === 0) {
-//       console.warn("No valid similarity results above threshold.");
-//       return []; // No valid results above the threshold
-//     }
-
-//     // Return the filtered match data
-//     // console.log("Filtered vector similarity results:", filteredResults);
-
-//     return filteredResults; // Send back the filtered data
-//   } catch (error) {
-//     console.error("Error in getVectorFromPinecone:", error);
-//     return [];
-//   }
-// };
 
 
 export const getVectorFromPinecone = async (query, userId) => {

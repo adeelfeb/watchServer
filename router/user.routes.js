@@ -26,7 +26,7 @@ router.route("/login").post(loginUser)
 router.route("/login-with-temp-token").post(loginWithTempToken)
 // These routes are secure since using verifyJWT thingi is being used
 router.route("/logout").post(verifyJWT, logoutUser)
-router.route("/change-password").post(verifyJWT, changeCurrentPassword)
+router.route("/change-password").patch(verifyJWT, changeCurrentPassword)
 router.route("/current-user").post(verifyJWT, getCurrentUser)
 router.route("/update-account").patch(verifyJWT, updateAccountDetails)
 router.route("/update-avatar").patch(verifyJWT, upload.single("avatar"), updateUserAvatar )

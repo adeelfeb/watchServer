@@ -225,6 +225,7 @@ const getQnas = asyncHandler(async (req, res) => {
       return res.status(200).json({
           message: "QnAs fetched successfully",
           qnas: video.qnas || { shortQuestions: [], mcqs: [] },
+          videoId
       });
   } catch (error) {
       console.error("Error fetching QnAs:", error.message);
@@ -237,12 +238,19 @@ const getQnas = asyncHandler(async (req, res) => {
 
 const storeAssessment = asyncHandler(async (req, res) => {
     try {
-        const videoId = req.query.videoId || req.body.videoId || req.params.videoId;
-        const userId = req.query.userId || req.body.userId || req.params.userId;
-        const submission = req.body.submission;
-
-        if (!videoId || !userId || !submission) {
-            return res.status(400).json({ message: "Video ID, User ID, and submission data are required." });
+      const videoId = req.query.videoId || req.body.videoId || req.params.videoId;
+      const userId = req.user._id || req.query.userId || req.body.userId || req.params.userId;
+      const quiz = req.body.quiz || req.body.quiz || req.params.quiz;;
+      
+      // console.log("insie the qna:", quiz)
+        if (!quiz) {
+            return res.status(400).json({ message: "quiz data is required." });
+        }
+        if (!videoId ) {
+            return res.status(400).json({ message: "Video ID is required." });
+        }
+        if (!userId ) {
+            return res.status(400).json({ message: "User ID isrequired." });
         }
 
         // Find video
@@ -255,9 +263,9 @@ const storeAssessment = asyncHandler(async (req, res) => {
         const scoreData = {
             user: userId,
             video: videoId,
-            shortAnswers: submission.shortAnswers || [],
-            mcqs: submission.mcqs || [],
-            score: submission.score || 0, // Default to 0 if not provided
+            shortAnswers: quiz.shortAnswers || [],
+            mcqs: quiz.mcqs || [],
+            score: quiz.score || 0, // Default to 0 if not provided
         };
 
         // Save the score data
@@ -276,6 +284,90 @@ const storeAssessment = asyncHandler(async (req, res) => {
 
 
 
+const getScore = asyncHandler(async (req, res) => {
+  try {
+      const { videoId } = req.query.videoId || req.body.videoId || req.params.videoId;
+      const userId = req.user._id || req.query.userId || req.body.userId || req.params.userId;
+
+      if (!videoId) {
+          throw new ApiError(400, "Video ID is required");
+      }
+
+      // Find the user
+      const user = await User.findById(userId);
+      if (!user) {
+          throw new ApiError(404, "User not found");
+      }
+
+      // Check if the video exists in the user's watch history
+      const videoIndex = user.watchHistory.indexOf(videoId);
+      if (videoIndex === -1) {
+          throw new ApiError(404, "Video not found in watch history");
+      }
+
+      // Remove the video from the watch history
+      user.watchHistory.splice(videoIndex, 1);
+
+      // Save the updated user document
+      await user.save();
+
+      // Return success response
+      res.status(200).json(
+          new ApiResponse(200, null, "Video removed from watch history successfully")
+      );
+  } catch (error) {
+      // Handle errors
+      if (error instanceof ApiError) {
+          res.status(error.statusCode).json({ message: error.message });
+      } else {
+          res.status(500).json({ message: "Failed to delete video from watch history", error: error.message });
+      }
+  }
+});
+
+const deleteHistory = asyncHandler(async (req, res) => {
+  try {
+      const { videoId } = req.body; // Assuming the videoId is passed in the request body
+      const userId = req.user._id; // Get the user ID from the request (authenticated user)
+
+      if (!videoId) {
+          throw new ApiError(400, "Video ID is required");
+      }
+
+      // Find the user
+      const user = await User.findById(userId);
+      if (!user) {
+          throw new ApiError(404, "User not found");
+      }
+
+      // Check if the video exists in the user's watch history
+      const videoIndex = user.watchHistory.indexOf(videoId);
+      if (videoIndex === -1) {
+          throw new ApiError(404, "Video not found in watch history");
+      }
+
+      // Remove the video from the watch history
+      user.watchHistory.splice(videoIndex, 1);
+
+      // Save the updated user document
+      await user.save();
+
+      // Return success response
+      res.status(200).json(
+          new ApiResponse(200, null, "Video removed from watch history successfully")
+      );
+  } catch (error) {
+      // Handle errors
+      if (error instanceof ApiError) {
+          res.status(error.statusCode).json({ message: error.message });
+      } else {
+          res.status(500).json({ message: "Failed to delete video from watch history", error: error.message });
+      }
+  }
+});
+
+
+
 
 export{
     getWatchHistory,
@@ -284,5 +376,7 @@ export{
     getSummary,
     getQnas,
     keyconcept,
-    storeAssessment
+    storeAssessment,
+    deleteHistory,
+    getScore
 }

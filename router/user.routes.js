@@ -2,7 +2,7 @@ import {Router} from "express"
 import { registerUser,loginWithTempToken,  loginUser, logoutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage } from "../controllers/user.controller.js"
 import { upload } from "../middlewares/multer.middleware.js"
 import { verifyJWT } from "../middlewares/auth.middleware.js"
-import { getWatchHistory, addVideo, getTranscript, getSummary, getQnas, keyconcept, storeAssessment } from "../controllers/userVideo.controller.js"
+import { getWatchHistory, addVideo, getTranscript, getSummary, getQnas, keyconcept, storeAssessment, deleteHistory } from "../controllers/userVideo.controller.js"
 import { addFileData, getFileHistory, getVectorData } from "../controllers/userFileData.controller.js";
 import { insertChat, getChatHistory } from "../controllers/userChat.controller.js"; 
 
@@ -41,7 +41,7 @@ router.route("/qnas").get(verifyJWT, getQnas);
 router.route("/keyconcept").get(verifyJWT, keyconcept);  
 
 //assesment route submission
-router.route("/add-assesment").post(verifyJWT, storeAssessment);  
+router.route("/qnas").post(verifyJWT, storeAssessment);  
 
 
 
@@ -56,6 +56,7 @@ router.route("/get-chat-history").post(verifyJWT, getChatHistory);
 
 // router.route("/c/:username").get(verifyJWT, getUserChannelProfile)
 router.route("/history").get(verifyJWT, getWatchHistory)
+router.route("/delete-from-history").delete(verifyJWT, deleteHistory)
 router.route("/refreshToken").get(verifyJWT, refreshAccessToken)
 
 

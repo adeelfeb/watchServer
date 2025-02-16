@@ -16,7 +16,11 @@ const allowedOrigins = [
     "https://project-mern-deploy-plum.vercel.app",
     config.corsOrigin,
     config.externalEndpoints,
-    process.env.EXTERNAL_VIDEO_ENDPOINT
+    process.env.EXTERNAL_VIDEO_ENDPOINT,
+    process.env.EXTERNAL_VIDEO_ENDPOINT,
+    process.env.LOCAL_ENDPOINT3,
+    process.env.LOCAL_ENDPOINT,
+    process.env.LOCAL_ENDPOINT2,
 ];
 
 

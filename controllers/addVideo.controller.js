@@ -1,189 +1,102 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Video } from "../models/video.model.js";
-import { User } from "../models/user.model.js";
-import { ApiError } from "../utils/ApiError.js";
-import { ApiResponse } from "../utils/ApiResponse.js";
 import { parseAndStoreInPinecone } from "./pineConeVectorSaving.controller.js";
+import { Default_Youtube_URL } from "../src/constants.js";
 
 
 
-// const addVideo = asyncHandler(async (req, res) => {
-//     const videoUrl = req.body.videoUrl;
-//     const userId = req.user._id; // Assuming `req.user` is populated by a middleware like `verifyJWT`
-
-//     if (!videoUrl) {
-//         throw new ApiError(400, "Please provide a valid video URL");
-//     }
-
-//     // Check if the video exists in the database
-//     let video = await Video.findOne({ videoUrl });
-
-//     if (!video) {
-//         // Video doesn't exist, create a new video entry
-//         video = new Video({ videoUrl });
-
-//         // Fetch video details (from YouTube or another source)
-//         await video.fetchVideoDetails();
-
-//         // Validate video duration
-//         const [minutes, seconds] = video.duration.split(":").map(Number);
-//         if (minutes > 20 || (minutes === 20 && seconds > 0)) {
-//             throw new ApiError(400, "Input duration should be less than 20 minutes");
-//         }
-
-//         // Save the new video to the database
-//         await video.save();
-//     }
-
-//     // Fetch the user from the database
-//     const user = await User.findById(userId).populate("watchHistory");
-
-//     if (!user) {
-//         throw new ApiError(404, "User not found");
-//     }
-
-//     // Check if the video is already in the user's watch history
-//     const alreadyInHistory = user.watchHistory.some(
-//         (historyItem) => historyItem.videoUrl === videoUrl
-//     );
-
-//     if (alreadyInHistory) {
-//         return res.status(200).json(
-//             new ApiResponse(
-//                 201,
-//                 video,
-//                 "Video already in watch history"
-//             )
-//         );
-//     }
-
-//     // Add the video to the user's watch history
-//     user.watchHistory.push(video._id);
-//     await user.save();
-
-//     res.status(201).json(
-//         new ApiResponse(
-//             201,
-//             video,
-//             "Video added successfully and included in watch history"
-//         )
-//     );
-// });
-
-// const addVideo = asyncHandler(async (req, res) => {
-//     const { videoUrl } = req.body;
-//     const userId = req.user._id;
+const DeleteVideo = asyncHandler(async (req, res) => {
+    const { id } = req.body;
   
-//     if (!videoUrl) {
-//       console.error("❌ Missing video URL in request body.");
-//       throw new ApiError(400, "Please provide a valid video URL");
-//     }
+    // Validate required fields
+    if (!id) {
+      return res.status(400).json({ message: "Video ID is required" });
+    }
   
-//     try {
-//       console.log("🔍 Checking if video exists in DB...");
-//       let video = await Video.findOne({ videoUrl }).lean();
+    try {
+      // Find the video by ID
+      const video = await Video.findById(id);
   
-//       if (!video) {
-//         console.log("⚡ Video not found in DB, fetching new details...");
-//         video = new Video({ videoUrl });
+      if (!video) {
+        return res.status(404).json({
+          message: "Video not found",
+        });
+      }
   
-//         try {
-//           await video.fetchVideoDetails(); // Fetch YouTube data
+      // Delete the video
+      await Video.findByIdAndDelete(id);
   
-//           // Validate video duration
-//           const [minutes, seconds] = video.duration.split(":").map(Number);
-//           if (minutes > 20 || (minutes === 20 && seconds > 0)) {
-//             console.warn("🚨 Video duration exceeds 20 minutes. Rejecting...");
-//             throw new ApiError(400, "Input duration should be less than 20 minutes");
-//           }
+      // Respond to the client
+      res.status(200).json({
+        message: "Video deleted successfully",
+        deletedVideo: video, // Returning the deleted video data (optional)
+      });
+    } catch (error) {
+      console.error("Error Deleting Video:", error.message);
   
-//           await video.save();
-//           console.log("✅ Video saved to DB:", video);
-//         } catch (fetchError) {
-//           console.error("⚠️ Failed to fetch video details:", fetchError.message);
-//           console.warn("🚨 Using default fallback data for video.");
-  
-//           // Assign default values if fetching fails
-//           video.thumbnailUrl = "https://havecamerawilltravel.com/wp-content/uploads/2020/01/youtube-thumbnails-size-header-1-800x450.png";
-//           video.title = "Title Unavailable";
-//           video.duration = "Unknown";
-//         }
-//       } else {
-//         console.log("✅ Video found in DB, skipping fetch.");
-//       }
-  
-//       // Fetch user and check watch history in parallel
-//       const user = await User.findById(userId).populate("watchHistory").lean();
-//       if (!user) {
-//         console.error("❌ User not found in database.");
-//         throw new ApiError(404, "User not found");
-//       }
-  
-//       // Check if video is already in watch history
-//       if (user.watchHistory.some((historyItem) => historyItem.videoUrl === videoUrl)) {
-//         console.log("🔄 Video already in watch history, skipping...");
-//         return res.status(200).json(new ApiResponse(200, video, "Video already in watch history"));
-//       }
-  
-//       // Add video to watch history (async update for speed)
-//       await User.updateOne({ _id: userId }, { $push: { watchHistory: video._id } });
-//       console.log("🎉 Video successfully added to watch history!");
-  
-//       res.status(201).json(new ApiResponse(201, video, "Video added successfully and included in watch history"));
-//     } catch (error) {
-//       console.error("❌ Unexpected error in addVideo function:", error);
-//       res.status(error.statusCode || 500).json(new ApiResponse(error.statusCode || 500, null, error.message || "Internal Server Error"));
-//     }
-//   });
+      // Send error response
+      res.status(500).json({
+        message: "Failed to delete video",
+        error: error.message,
+      });
+    }
+  });
 
-// const addTranscript = asyncHandler(async (req, res) => {
-//     const { id, english, original } = req.body; // Extract ID and transcript fields
-//     // console.log("Received request body:", req.body);
+
+
+const addVideoDetails = asyncHandler(async (req, res) => {
+    
+    
+    const { title, thumbnailUrl, duration, id } = req.body;
   
-//     try {
-//         // Find the video by ID
-//         const video = await Video.findById(id);
+    // Validate required fields
+    if (!id) {
+      return res.status(400).json({ message: "Video ID is required" });
+    }
   
-//         if (!video) {
-//             return res.status(404).json({ message: "Video not found" });
-//         }
+    try {
+        console.log("inside add Video Details fucnton")
+      let video = await Video.findById(id);
+  
+      // If the video doesn't exist, create a new one
+      if (!video) {
+        video = new Video({
+          _id: id, // Use the provided ID
+          videoUrl: Default_Youtube_URL, // Provide a default or required video URL
+          title,
+          thumbnailUrl,
+          duration,
+        });
+      } else {
+       
+        
+        video.title = title || video.title; 
+        
+        video.thumbnailUrl = thumbnailUrl || video.thumbnailUrl; 
+        
+        video.duration = duration || video.duration; 
+        
+      }
+  
+      // Save the video to the database
+      await video.save();
+  
+      // Respond to the client
+      res.status(200).json({
+        message: "Video details updated successfully",
+        video,
+      });
+    } catch (error) {
+      console.error("Error updating video details:", error.message);
+  
+      // Send error response
+      res.status(500).json({
+        message: "Failed to update video details",
+        error: error.message,
+      });
+    }
+  });
 
-//         // Ensure video.transcript exists
-//         if (!video.transcript) {
-//             video.transcript = {}; // Initialize transcript object if undefined
-//         }
-
-//         // Validate and update the 'english' transcript field
-//         if (english && Array.isArray(english)) {
-//             video.transcript.english = english
-//                 .filter(item => Array.isArray(item.timestamp) && item.text) // Ensure valid format
-//                 .map(item => ({
-//                     timestamp: item.timestamp,
-//                     text: item.text,
-//                 }));
-//         }
-
-//         // Validate and update the 'original' transcript field
-//         if (original && Array.isArray(original)) {
-//             video.transcript.original = original
-//                 .filter(item => Array.isArray(item.timestamp) && item.text) // Ensure valid format
-//                 .map(item => ({
-//                     timestamp: item.timestamp,
-//                     text: item.text,
-//                 }));
-//         }
-
-//         // Save the updated video document
-//         await video.save();
-//         console.log("done transcript")
-//         res.status(200).json({
-//             message: "Transcript updated successfully",
-//         });
-//     } catch (error) {
-//         console.error("Error updating transcript:", error.message);
-//         res.status(500).json({ message: "Failed to update transcript", error: error.message });
-//     }
-// });
 
 
 const addTranscript = asyncHandler(async (req, res) => {
@@ -328,55 +241,7 @@ const addKeyconcept = asyncHandler(async (req, res) => {
   });
   
 
-// const addKeyconcept = asyncHandler(async (req, res) => {
-//     const { id, concept } = req.body;
-//     console.log("Received Keyconcept:", req.body);
   
-//     try {
-//       // Find the video by ID
-//       const video = await Video.findById(id);
-  
-//       if (!video) {
-//         return res.status(404).json({ message: "Video not found" });
-//       }
-  
-//       if (concept) {
-//         // Store the full text under `primary`
-//         video.keyconcept.primary = concept;
-  
-//         // Regex to extract each concept from the text
-//         const conceptMatches = concept.match(/Concept\s*#\d+:\s*([\s\S]*?)(?=\nConcept\s*#\d+:|\nConclusion:|$)/g);
-  
-//         if (conceptMatches) {
-//           video.keyconcept.secondary = conceptMatches.map((text) => {
-//             // Extract the first line as the title (question) and the rest as the answer
-//             const lines = text.trim().split("\n").filter(Boolean);
-//             const question = lines[0].trim();
-//             const answer = lines.slice(1).join(" ").trim();
-//             return { question, answer: [answer] };
-//           });
-//         }
-//       }
-  
-//       // Save the updated video
-//       await video.save();
-  
-//       res.status(200).json({
-//         message: "Keyconcept updated successfully",
-//         keyconcept: video.keyconcept,
-//       });
-//     } catch (error) {
-//       console.error("Error updating keyconcept:", error);
-//       res.status(500).json({
-//         message: "Failed to update keyconcept",
-//         error: error.message,
-//       });
-//     }
-//   });
-  
-
-
-
 
 
 const addAssesment = asyncHandler(async (req, res) => {
@@ -418,74 +283,6 @@ const addAssesment = asyncHandler(async (req, res) => {
 
 
 
-// const addQnas = asyncHandler(async (req, res) => {
-//     const { id, Questions, mcqs } = req.body;
-  
-//     if (!id) {
-//         return res.status(400).json({ message: "Video ID is required." });
-//     }
-  
-//     console.log("Incoming Q&A data:", req.body);
-  
-//     try {
-//         // Find video
-//         const video = await Video.findById(id);
-//         if (!video) {
-//             return res.status(404).json({ message: "Video not found." });
-//         }
-  
-//         // Ensure `qnas` object exists
-//         if (!video.qnas) {
-//             video.qnas = { shortQuestions: [], mcqs: [] };
-//         }
-  
-//         // Parse `Questions` safely
-//         let parsedQuestions = [];
-//         try {
-//             parsedQuestions = JSON.parse(Questions);
-//             if (!Array.isArray(parsedQuestions)) {
-//                 throw new Error("Questions must be an array.");
-//             }
-//         } catch (error) {
-//             console.error("Error parsing Questions:", error.message);
-//             return res.status(400).json({ message: "Invalid Questions format." });
-//         }
-  
-//         // Add short questions
-//         parsedQuestions.forEach(({ question }) => {
-//             if (typeof question === "string" && question.trim() !== "") {
-//                 video.qnas.shortQuestions.push({ question, answer: "" });
-//             }
-//         });
-  
-//         // Validate and add MCQs
-//         if (Array.isArray(mcqs)) {
-//             mcqs.forEach(({ question, options, correctAnswer }) => {
-//                 if (
-//                     typeof question === "string" &&
-//                     Array.isArray(options) &&
-//                     options.length > 1 &&
-//                     options.includes(correctAnswer)
-//                 ) {
-//                     video.qnas.mcqs.push({ question, options, correctAnswer });
-//                 }
-//             });
-//         } else {
-//             console.warn("MCQs data is missing or incorrectly formatted.");
-//         }
-  
-//         // Save the updated video document
-//         await video.save();
-  
-//         return res.status(200).json({
-//             message: "Q&A updated successfully",
-//             qnas: video.qnas,
-//         });
-//     } catch (error) {
-//         console.error("Error updating Q&A:", error.message);
-//         return res.status(500).json({ message: "Failed to update Q&A", error: error.message });
-//     }
-//   });
 
 const addQnas = asyncHandler(async (req, res) => {
     const { id, Questions, mcqs } = req.body; // Extract video ID and Q&A fields
@@ -547,55 +344,13 @@ const addQnas = asyncHandler(async (req, res) => {
 
 
 
-// const addQnas = asyncHandler(async (req, res) => {
-//     const { id, Questions, mcqs } = req.body; // Extract video ID and possible Q&A fields from the request body
-//     console.log("The data to be saved is:", req.body)
-
-//     try {
-//         // Find the video by ID
-//         const video = await Video.findById(id);
-
-//         if (!video) {
-//             return res.status(404).json({ message: "Video not found" });
-//         }
-
-//         // Validate and add short questions if provided
-//         if (shortQuestions && Array.isArray(shortQuestions)) {
-//             shortQuestions.forEach(({ question, answer }) => {
-//                 if (question && answer) {
-//                     video.qnas.shortQuestions.push({ question, answer });
-//                 }
-//             });
-//         }
-
-//         // Validate and add MCQs if provided
-//         if (mcqs && Array.isArray(mcqs)) {
-//             mcqs.forEach(({ question, options, correctAnswer }) => {
-//                 if (question && options && correctAnswer && Array.isArray(options)) {
-//                     video.qnas.mcqs.push({ question, options, correctAnswer });
-//                 }
-//             });
-//         }
-
-//         // Save the updated video
-//         await video.save();
-
-//         res.status(200).json({
-//             message: "Q&A updated successfully",
-//         });
-//     } catch (error) {
-//         res.status(500).json({ message: "Failed to update Q&A", error });
-//     }
-// });
-
-
-
-
 export {
     addTranscript,
     addSummary,
     addQnas,
     addKeyconcept,
-    addAssesment
+    addAssesment, 
+    addVideoDetails,
+    DeleteVideo
  };
  

@@ -199,7 +199,7 @@ const keyconcept = asyncHandler(async (req, res) => {
     // console.log("This is the summary:", summary);
     
     return res.status(200).json(
-      new ApiResponse(200, { summary: summary }, "Summary fetched successfully")
+      new ApiResponse(200, { summary }, "Summary fetched successfully")
     );
 });
 
@@ -238,6 +238,7 @@ const getQnas = asyncHandler(async (req, res) => {
 
 const storeAssessment = asyncHandler(async (req, res) => {
     try {
+      // console.log("Inside the storeAssesment function of userVideo Controller")
       const videoId = req.query.videoId || req.body.videoId || req.params.videoId;
       const userId = req.user._id || req.query.userId || req.body.userId || req.params.userId;
       const quiz = req.body.quiz || req.body.quiz || req.params.quiz;;
@@ -273,8 +274,9 @@ const storeAssessment = asyncHandler(async (req, res) => {
         await newScore.save();
 
         return res.status(201).json({
-            message: "Assessment stored successfully",
+            message: "done",
             score: newScore,
+            status: "201"
         });
     } catch (error) {
         console.error("Error storing assessment:", error.message);

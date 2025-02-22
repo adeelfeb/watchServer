@@ -55,7 +55,7 @@ const addVideoDetails = asyncHandler(async (req, res) => {
     }
   
     try {
-        console.log("inside add Video Details fucnton")
+        // console.log("inside add Video Details fucnton")
       let video = await Video.findById(id);
   
       // If the video doesn't exist, create a new one

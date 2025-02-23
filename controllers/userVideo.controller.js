@@ -294,7 +294,7 @@ const storeAssessment = asyncHandler(async (req, res) => {
           overallScore: totalScore, // Use overallScore instead of score
           scoreIsEvaluated: false, // Set to false initially
       };
-      console.log("Score data is stored", scoreData);
+      // console.log("Score data is stored", scoreData);
 
       // Save or update the score data
       const updatedScore = await Score.findOneAndUpdate(

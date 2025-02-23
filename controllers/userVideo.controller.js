@@ -6,6 +6,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import axios from 'axios'; 
 import config from "../src/conf.js";
 import { Score } from "../models/score.model.js";
+import mongoose from "mongoose";
 
 
 
@@ -207,6 +208,8 @@ const keyconcept = asyncHandler(async (req, res) => {
 
 
 
+
+
 const getQnas = asyncHandler(async (req, res) => {
   try {
       const videoId = req.query.videoId || req.body.videoId || req.params.videoId;
@@ -233,99 +236,161 @@ const getQnas = asyncHandler(async (req, res) => {
   }
 });
 
-
-
-
 const storeAssessment = asyncHandler(async (req, res) => {
-    try {
-      // console.log("Inside the storeAssesment function of userVideo Controller")
+  try {
       const videoId = req.query.videoId || req.body.videoId || req.params.videoId;
       const userId = req.user._id || req.query.userId || req.body.userId || req.params.userId;
-      const quiz = req.body.quiz || req.body.quiz || req.params.quiz;;
-      
-      // console.log("insie the qna:", quiz)
-        if (!quiz) {
-            return res.status(400).json({ message: "quiz data is required." });
-        }
-        if (!videoId ) {
-            return res.status(400).json({ message: "Video ID is required." });
-        }
-        if (!userId ) {
-            return res.status(400).json({ message: "User ID isrequired." });
-        }
+      const quiz = req.body.quiz;
 
-        // Find video
-        const video = await Video.findById(videoId);
-        if (!video) {
-            return res.status(404).json({ message: "Video not found." });
-        }
+      console.log("Inside the QnA:", quiz);
 
-        // Construct score document
-        const scoreData = {
-            user: userId,
-            video: videoId,
-            shortAnswers: quiz.shortAnswers || [],
-            mcqs: quiz.mcqs || [],
-            score: quiz.score || 0, // Default to 0 if not provided
-        };
+      if (!quiz) {
+          return res.status(400).json({ message: "Quiz data is required." });
+      }
+      if (!videoId) {
+          return res.status(400).json({ message: "Video ID is required." });
+      }
+      if (!userId) {
+          return res.status(400).json({ message: "User ID is required." });
+      }
 
-        // Save the score data
-        const newScore = new Score(scoreData);
-        await newScore.save();
+      // Find video
+      const video = await Video.findById(videoId);
+      if (!video) {
+          return res.status(404).json({ message: "Video not found." });
+      }
 
-        return res.status(201).json({
-            message: "done",
-            score: newScore,
-            status: "201"
-        });
-    } catch (error) {
-        console.error("Error storing assessment:", error.message);
-        return res.status(500).json({ message: "Failed to store assessment", error: error.message });
-    }
+      // Process MCQ answers
+      let mcqScore = 0;
+      const mcqAnswers = quiz.mcqAnswers?.map(mcq => {
+          const isCorrect = mcq.selectedOption === mcq.correctAnswer; // Assuming correctAnswer is available
+          if (isCorrect) mcqScore += 1;
+          return { ...mcq, isCorrect };
+      }) || [];
+
+      // Process short answers (these will be evaluated later by LLM/chatbot)
+      const shortAnswers = quiz.shortAnswers?.map(answer => ({
+          ...answer,
+          isCorrect: null // Placeholder for LLM evaluation
+      })) || [];
+
+      // Process fill-in-the-blanks (assuming evaluation logic)
+      let fillInTheBlanksScore = 0;
+      const fillInTheBlanks = quiz.fillInTheBlanks?.map(blank => {
+          const isCorrect = blank.givenAnswer === blank.correctAnswer; // Assuming correctAnswer is available
+          if (isCorrect) fillInTheBlanksScore += 1;
+          return { ...blank, isCorrect };
+      }) || [];
+
+      const totalScore = mcqScore + fillInTheBlanksScore; // Short answers not included yet
+
+      // Construct score document
+      const scoreData = {
+          user: userId,
+          video: videoId,
+          shortAnswers,
+          mcqs: mcqAnswers,
+          fillInTheBlanks,
+          overallScore: totalScore, // Use overallScore instead of score
+          scoreIsEvaluated: false, // Set to false initially
+      };
+      console.log("Score data is stored", scoreData);
+
+      // Save or update the score data
+      const updatedScore = await Score.findOneAndUpdate(
+          { user: userId, video: videoId }, // Query to find the existing document
+          scoreData, // New data to overwrite
+          { upsert: true, new: true, runValidators: true } // Options: create if not exists, return updated document
+      );
+
+      return res.status(201).json({
+          message: "Assessment stored/updated successfully.",
+          score: updatedScore,
+          status: 201
+      });
+  } catch (error) {
+      console.error("Error storing assessment:", error.message);
+      return res.status(500).json({ message: "Failed to store assessment", error: error.message });
+  }
 });
-
 
 
 const getScore = asyncHandler(async (req, res) => {
   try {
-      const { videoId } = req.query.videoId || req.body.videoId || req.params.videoId;
-      const userId = req.user._id || req.query.userId || req.body.userId || req.params.userId;
+      const videoId  = req.params.videoId || req.body.videoId || req.query.videoId;
+      const user = req.user || req.query.userId || req.body.userId || req.params.userId;
 
       if (!videoId) {
           throw new ApiError(400, "Video ID is required");
       }
 
-      // Find the user
-      const user = await User.findById(userId);
-      if (!user) {
-          throw new ApiError(404, "User not found");
+      // Ensure user is defined and has a valid _id
+      if (!user || !user._id) {
+          throw new ApiError(400, "User ID is required");
       }
 
-      // Check if the video exists in the user's watch history
       const videoIndex = user.watchHistory.indexOf(videoId);
       if (videoIndex === -1) {
           throw new ApiError(404, "Video not found in watch history");
       }
 
-      // Remove the video from the watch history
-      user.watchHistory.splice(videoIndex, 1);
+      // Corrected query: Use user._id instead of user._Id
+      const score = await Score.findOne({ user: user._id, video: videoId });
 
-      // Save the updated user document
-      await user.save();
+      if (!score) {
+          throw new ApiError(404, "Score not found for the given user and video");
+      }
 
-      // Return success response
+      const shortAnswers = score.shortAnswers.map(q => ({
+          question: q.question,
+          givenAnswer: q.givenAnswer,
+          correctAnswer: q.correctAnswer,
+          score: q.score,
+      }));
+
+      const mcqs = score.mcqs.map(q => ({
+          question: q.question,
+          selectedOption: q.selectedOption,
+          correctOption: q.correctOption,
+          isCorrect: q.isCorrect,
+          score: q.score,
+      }));
+
+      const fillInTheBlanks = score.fillInTheBlanks.map(q => ({
+          sentence: q.sentence,
+          givenAnswer: q.givenAnswer,
+          correctAnswer: q.correctAnswer,
+          score: q.score,
+      }));
+
+      const overallScore = score.overallScore;
+
+      // Return the scores and question details, including scoreIsEvaluated
       res.status(200).json(
-          new ApiResponse(200, null, "Video removed from watch history successfully")
+          new ApiResponse(200, {
+              shortAnswers,
+              mcqs,
+              fillInTheBlanks,
+              overallScore,
+              scoreIsEvaluated: score.scoreIsEvaluated, // Include score evaluation status
+          }, "Scores and question details retrieved successfully")
       );
   } catch (error) {
-      // Handle errors
       if (error instanceof ApiError) {
           res.status(error.statusCode).json({ message: error.message });
       } else {
-          res.status(500).json({ message: "Failed to delete video from watch history", error: error.message });
+          res.status(500).json({ message: "Failed to fetch score for the quiz", error: error.message });
       }
   }
 });
+
+
+
+
+
+
+
+
 
 const deleteHistory = asyncHandler(async (req, res) => {
   try {

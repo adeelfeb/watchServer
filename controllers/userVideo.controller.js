@@ -238,11 +238,11 @@ const getQnas = asyncHandler(async (req, res) => {
 
 const storeAssessment = asyncHandler(async (req, res) => {
   try {
-      const videoId = req.query.videoId || req.body.videoId || req.params.videoId;
+      const videoId = req.params.videoId || req.body.videoId || req.params.videoId;
       const userId = req.user._id || req.query.userId || req.body.userId || req.params.userId;
       const quiz = req.body.quiz;
 
-      console.log("Inside the QnA:", quiz);
+      console.log("Inside the QnA:");
 
       if (!quiz) {
           return res.status(400).json({ message: "Quiz data is required." });

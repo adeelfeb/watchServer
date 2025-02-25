@@ -236,84 +236,177 @@ const getQnas = asyncHandler(async (req, res) => {
   }
 });
 
+// const storeAssessment = asyncHandler(async (req, res) => {
+//   try {
+//       const videoId = req.params.videoId || req.body.videoId || req.params.videoId;
+//       const userId = req.user._id || req.query.userId || req.body.userId || req.params.userId;
+//       const quiz = req.body.quiz;
+
+//       console.log("Inside the QnA:", quiz);
+
+//       if (!quiz) {
+//           return res.status(400).json({ message: "Quiz data is required." });
+//       }
+//       if (!videoId) {
+//           return res.status(400).json({ message: "Video ID is required." });
+//       }
+//       if (!userId) {
+//           return res.status(400).json({ message: "User ID is required." });
+//       }
+
+//       // Find video
+//       const video = await Video.findById(videoId);
+//       if (!video) {
+//           return res.status(404).json({ message: "Video not found." });
+//       }
+
+//       // Process MCQ answers
+//       let mcqScore = 0;
+//       const mcqAnswers = quiz.mcqAnswers?.map(mcq => {
+//           const isCorrect = mcq.selectedOption === mcq.correctAnswer; // Assuming correctAnswer is available
+//           if (isCorrect) mcqScore += 1;
+//           return { ...mcq, isCorrect };
+//       }) || [];
+
+//       // Process short answers (these will be evaluated later by LLM/chatbot)
+//       const shortAnswers = quiz.shortAnswers?.map(answer => ({
+//           ...answer,
+//           isCorrect: null // Placeholder for LLM evaluation
+//       })) || [];
+
+//       // Process fill-in-the-blanks (assuming evaluation logic)
+//       let fillInTheBlanksScore = 0;
+//       const fillInTheBlanks = quiz.fillInTheBlanks?.map(blank => {
+//           const isCorrect = blank.givenAnswer === blank.correctAnswer; // Assuming correctAnswer is available
+//           if (isCorrect) fillInTheBlanksScore += 1;
+//           return { ...blank, isCorrect };
+//       }) || [];
+
+//       const totalScore = mcqScore + fillInTheBlanksScore; // Short answers not included yet
+
+//       // Construct score document
+//       const scoreData = {
+//           user: userId,
+//           video: videoId,
+//           shortAnswers,
+//           mcqs: mcqAnswers,
+//           fillInTheBlanks,
+//           overallScore: totalScore, // Use overallScore instead of score
+//           scoreIsEvaluated: false, // Set to false initially
+//       };
+//       // console.log("Score data is stored", scoreData);
+
+//       // Save or update the score data
+//       const updatedScore = await Score.findOneAndUpdate(
+//           { user: userId, video: videoId }, // Query to find the existing document
+//           scoreData, // New data to overwrite
+//           { upsert: true, new: true, runValidators: true } // Options: create if not exists, return updated document
+//       );
+
+//       return res.status(201).json({
+//           message: "Assessment stored/updated successfully.",
+//           score: updatedScore,
+//           status: 201
+//       });
+//   } catch (error) {
+//       console.error("Error storing assessment:", error.message);
+//       return res.status(500).json({ message: "Failed to store assessment", error: error.message });
+//   }
+// });
+
+
 const storeAssessment = asyncHandler(async (req, res) => {
   try {
-      const videoId = req.params.videoId || req.body.videoId || req.params.videoId;
-      const userId = req.user._id || req.query.userId || req.body.userId || req.params.userId;
-      const quiz = req.body.quiz;
+    const videoId = req.params.videoId || req.body.videoId || req.params.videoId;
+    const userId = req.user._id || req.query.userId || req.body.userId || req.params.userId;
+    const quiz = req.body.quiz;
 
-      console.log("Inside the QnA:");
+    // console.log("Inside the QnA:", quiz);
 
-      if (!quiz) {
-          return res.status(400).json({ message: "Quiz data is required." });
-      }
-      if (!videoId) {
-          return res.status(400).json({ message: "Video ID is required." });
-      }
-      if (!userId) {
-          return res.status(400).json({ message: "User ID is required." });
-      }
+    // Validate required fields
+    if (!quiz) {
+      return res.status(400).json({ message: "Quiz data is required." });
+    }
+    if (!videoId) {
+      return res.status(400).json({ message: "Video ID is required." });
+    }
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required." });
+    }
 
-      // Find video
-      const video = await Video.findById(videoId);
-      if (!video) {
-          return res.status(404).json({ message: "Video not found." });
-      }
+    // Find video
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ message: "Video not found." });
+    }
 
-      // Process MCQ answers
-      let mcqScore = 0;
-      const mcqAnswers = quiz.mcqAnswers?.map(mcq => {
-          const isCorrect = mcq.selectedOption === mcq.correctAnswer; // Assuming correctAnswer is available
-          if (isCorrect) mcqScore += 1;
-          return { ...mcq, isCorrect };
-      }) || [];
-
-      // Process short answers (these will be evaluated later by LLM/chatbot)
-      const shortAnswers = quiz.shortAnswers?.map(answer => ({
-          ...answer,
-          isCorrect: null // Placeholder for LLM evaluation
-      })) || [];
-
-      // Process fill-in-the-blanks (assuming evaluation logic)
-      let fillInTheBlanksScore = 0;
-      const fillInTheBlanks = quiz.fillInTheBlanks?.map(blank => {
-          const isCorrect = blank.givenAnswer === blank.correctAnswer; // Assuming correctAnswer is available
-          if (isCorrect) fillInTheBlanksScore += 1;
-          return { ...blank, isCorrect };
-      }) || [];
-
-      const totalScore = mcqScore + fillInTheBlanksScore; // Short answers not included yet
-
-      // Construct score document
-      const scoreData = {
-          user: userId,
-          video: videoId,
-          shortAnswers,
-          mcqs: mcqAnswers,
-          fillInTheBlanks,
-          overallScore: totalScore, // Use overallScore instead of score
-          scoreIsEvaluated: false, // Set to false initially
+    // Process MCQ answers
+    let mcqScore = 0;
+    const mcqAnswers = quiz.mcqAnswers?.map(mcq => {
+      const isCorrect = mcq.correctAnswer ? mcq.selectedOption === mcq.correctAnswer : false; // Skip evaluation if correctAnswer is missing
+      if (isCorrect) mcqScore += 1;
+      return {
+        question: mcq.question,
+        selectedOption: mcq.selectedOption,
+        correctOption: mcq.correctAnswer || "Not provided", // Default value if correctAnswer is missing
+        isCorrect,
+        score: isCorrect ? 1 : 0, // Assign score based on correctness
       };
-      // console.log("Score data is stored", scoreData);
+    }) || [];
 
-      // Save or update the score data
-      const updatedScore = await Score.findOneAndUpdate(
-          { user: userId, video: videoId }, // Query to find the existing document
-          scoreData, // New data to overwrite
-          { upsert: true, new: true, runValidators: true } // Options: create if not exists, return updated document
-      );
+    // Process short answers (these will be evaluated later by LLM/chatbot)
+    const shortAnswers = quiz.shortAnswers?.map(answer => ({
+      question: answer.question,
+      givenAnswer: answer.givenAnswer,
+      correctAnswer: answer.correctAnswer || "Not provided", // Default value if correctAnswer is missing
+      score: 0, // Placeholder for LLM evaluation
+    })) || [];
 
-      return res.status(201).json({
-          message: "Assessment stored/updated successfully.",
-          score: updatedScore,
-          status: 201
-      });
+    // Process fill-in-the-blanks (assuming evaluation logic)
+    let fillInTheBlanksScore = 0;
+    const fillInTheBlanks = quiz.fillInTheBlanks?.map(blank => {
+      const isCorrect = blank.correctAnswer ? blank.givenAnswer === blank.correctAnswer : false; // Skip evaluation if correctAnswer is missing
+      if (isCorrect) fillInTheBlanksScore += 1;
+      return {
+        sentence: blank.question,
+        givenAnswer: blank.givenAnswer,
+        correctAnswer: blank.correctAnswer || "Not provided", // Default value if correctAnswer is missing
+        isCorrect,
+        score: isCorrect ? 1 : 0, // Assign score based on correctness
+      };
+    }) || [];
+
+    // Calculate total score (MCQs + fill-in-the-blanks)
+    const totalScore = mcqScore + fillInTheBlanksScore; // Short answers not included yet
+
+    // Construct score document
+    const scoreData = {
+      user: userId,
+      video: videoId,
+      shortAnswers,
+      mcqs: mcqAnswers,
+      fillInTheBlanks,
+      overallScore: totalScore, // Use overallScore instead of score
+      scoreIsEvaluated: false, // Set to false initially
+    };
+
+    // Save or update the score data
+    const updatedScore = await Score.findOneAndUpdate(
+      { user: userId, video: videoId }, // Query to find the existing document
+      scoreData, // New data to overwrite
+      { upsert: true, new: true, runValidators: true } // Options: create if not exists, return updated document
+    );
+
+    return res.status(201).json({
+      message: "Assessment stored/updated successfully.",
+      score: updatedScore,
+      status: 201,
+    });
   } catch (error) {
-      console.error("Error storing assessment:", error.message);
-      return res.status(500).json({ message: "Failed to store assessment", error: error.message });
+    console.error("Error storing assessment:", error.message);
+    return res.status(500).json({ message: "Failed to store assessment", error: error.message });
   }
 });
-
 
 const getScore = asyncHandler(async (req, res) => {
   try {

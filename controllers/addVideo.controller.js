@@ -101,7 +101,7 @@ const addVideoDetails = asyncHandler(async (req, res) => {
 
 const addTranscript = asyncHandler(async (req, res) => {
     const { id, english, original } = req.body;
-
+  console.log("inside the transcript:", english, original)
     try {
         const video = await Video.findById(id);
 

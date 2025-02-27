@@ -358,39 +358,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 
 
 
-// const updateAccountDetails = asyncHandler(async (req, res) => {
-//   const { fullname, email } = req.body;
-
-//   // Create an object to hold the fields that need to be updated
-//   const updateFields = {};
-
-//   // Only add fields to the update object if they are provided in the request
-//   if (fullname) {
-//     updateFields.fullname = fullname;
-//   }
-//   if (email) {
-//     updateFields.email = email;
-//   }
-
-//   // If no fields were provided, throw an error
-//   if (Object.keys(updateFields).length === 0) {
-//     throw new ApiError(400, "At least one field (fullname or email) is required.");
-//   }
-
-//   // Perform the update operation with the dynamically created fields
-//   const user = await User.findByIdAndUpdate(
-//     req.user?._id,
-//     {
-//       $set: updateFields,
-//     },
-//     { new: true }
-//   )
-//     .select("-password"); // You can also exclude other fields like refreshToken here if needed
-
-//   // Return the updated user details in the response
-//   return res.status(200).json(new ApiResponse(200, user, "Account details updated successfully"));
-// });
-
+  
 
 const updateUserAvatar = asyncHandler(async(req, res)=>{
     const avatarLocalPath = req.file?.path

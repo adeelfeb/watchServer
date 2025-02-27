@@ -34,6 +34,29 @@ const getWatchHistory = asyncHandler(async (req, res) => {
   }
 });
 
+
+const getAllVideos = asyncHandler(async (req, res) => {
+  try {
+    // Fetch all videos from the database
+    const videos = await Video.find({});
+
+    // Check if videos exist
+    if (!videos || videos.length === 0) {
+      return res.status(404).json({ message: "No videos found" });
+    }
+
+    // Return the videos in the response
+    res.status(200).json(
+      new ApiResponse(200, videos, "Videos fetched successfully")
+    );
+  } catch (error) {
+    console.error("Error fetching videos:", error);
+    res.status(500).json({ message: "Failed to fetch videos", error: error.message });
+  }
+});
+
+
+
 const addVideo = asyncHandler(async (req, res) => {
   const { videoUrl } = req.body;
   const userId = req.user._id;
@@ -236,83 +259,7 @@ const getQnas = asyncHandler(async (req, res) => {
   }
 });
 
-// const storeAssessment = asyncHandler(async (req, res) => {
-//   try {
-//       const videoId = req.params.videoId || req.body.videoId || req.params.videoId;
-//       const userId = req.user._id || req.query.userId || req.body.userId || req.params.userId;
-//       const quiz = req.body.quiz;
 
-//       console.log("Inside the QnA:", quiz);
-
-//       if (!quiz) {
-//           return res.status(400).json({ message: "Quiz data is required." });
-//       }
-//       if (!videoId) {
-//           return res.status(400).json({ message: "Video ID is required." });
-//       }
-//       if (!userId) {
-//           return res.status(400).json({ message: "User ID is required." });
-//       }
-
-//       // Find video
-//       const video = await Video.findById(videoId);
-//       if (!video) {
-//           return res.status(404).json({ message: "Video not found." });
-//       }
-
-//       // Process MCQ answers
-//       let mcqScore = 0;
-//       const mcqAnswers = quiz.mcqAnswers?.map(mcq => {
-//           const isCorrect = mcq.selectedOption === mcq.correctAnswer; // Assuming correctAnswer is available
-//           if (isCorrect) mcqScore += 1;
-//           return { ...mcq, isCorrect };
-//       }) || [];
-
-//       // Process short answers (these will be evaluated later by LLM/chatbot)
-//       const shortAnswers = quiz.shortAnswers?.map(answer => ({
-//           ...answer,
-//           isCorrect: null // Placeholder for LLM evaluation
-//       })) || [];
-
-//       // Process fill-in-the-blanks (assuming evaluation logic)
-//       let fillInTheBlanksScore = 0;
-//       const fillInTheBlanks = quiz.fillInTheBlanks?.map(blank => {
-//           const isCorrect = blank.givenAnswer === blank.correctAnswer; // Assuming correctAnswer is available
-//           if (isCorrect) fillInTheBlanksScore += 1;
-//           return { ...blank, isCorrect };
-//       }) || [];
-
-//       const totalScore = mcqScore + fillInTheBlanksScore; // Short answers not included yet
-
-//       // Construct score document
-//       const scoreData = {
-//           user: userId,
-//           video: videoId,
-//           shortAnswers,
-//           mcqs: mcqAnswers,
-//           fillInTheBlanks,
-//           overallScore: totalScore, // Use overallScore instead of score
-//           scoreIsEvaluated: false, // Set to false initially
-//       };
-//       // console.log("Score data is stored", scoreData);
-
-//       // Save or update the score data
-//       const updatedScore = await Score.findOneAndUpdate(
-//           { user: userId, video: videoId }, // Query to find the existing document
-//           scoreData, // New data to overwrite
-//           { upsert: true, new: true, runValidators: true } // Options: create if not exists, return updated document
-//       );
-
-//       return res.status(201).json({
-//           message: "Assessment stored/updated successfully.",
-//           score: updatedScore,
-//           status: 201
-//       });
-//   } catch (error) {
-//       console.error("Error storing assessment:", error.message);
-//       return res.status(500).json({ message: "Failed to store assessment", error: error.message });
-//   }
-// });
 
 
 const storeAssessment = asyncHandler(async (req, res) => {
@@ -479,8 +426,80 @@ const getScore = asyncHandler(async (req, res) => {
 
 
 
+const DeleteVideo = asyncHandler(async (req, res) => {
+  const { videoId } = req.body;
+  
+  // Validate required fields
+  // console.log("the request data is:", req.body)
+  if (!videoId) {
+    return res.status(400).json({ message: "Video ID is required" });
+  }
+
+  try {
+    // Find the video by ID
+    const video = await Video.findById(videoId);
+
+    if (!video) {
+      return res.status(404).json({
+        message: "Video not found",
+      });
+    }
+
+    // Delete the video
+    await Video.findByIdAndDelete(videoId);
+
+    // Respond to the client
+    res.status(200).json({
+      message: "Video deleted successfully",
+      deletedVideo: video, // Returning the deleted video data (optional)
+    });
+  } catch (error) {
+    console.error("Error Deleting Video:", error.message);
+
+    // Send error response
+    res.status(500).json({
+      message: "Failed to delete video",
+      error: error.message,
+    });
+  }
+});
 
 
+
+
+const DeleteVideos = asyncHandler(async (req, res) => {
+  const { videoIds } = req.body;
+  
+  // Validate required fields
+  if (!videoIds || !Array.isArray(videoIds)) {
+    return res.status(400).json({ message: "Video IDs array is required" });
+  }
+
+  try {
+    // Delete the videos
+    const result = await Video.deleteMany({ _id: { $in: videoIds } });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({
+        message: "No videos found to delete",
+      });
+    }
+
+    // Respond to the client
+    res.status(200).json({
+      message: "Videos deleted successfully",
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("Error Deleting Videos:", error.message);
+
+    // Send error response
+    res.status(500).json({
+      message: "Failed to delete videos",
+      error: error.message,
+    });
+  }
+});
 
 
 
@@ -538,5 +557,8 @@ export{
     keyconcept,
     storeAssessment,
     deleteHistory,
-    getScore
+    getScore,
+    DeleteVideo,
+    getAllVideos,
+    DeleteVideos
 }

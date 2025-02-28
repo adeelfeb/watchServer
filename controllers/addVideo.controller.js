@@ -101,7 +101,7 @@ const addVideoDetails = asyncHandler(async (req, res) => {
 
 const addTranscript = asyncHandler(async (req, res) => {
     const { id, english, original } = req.body;
-  console.log("inside the transcript:", english, original)
+  // console.log("inside the transcript:", english, original)
     try {
         const video = await Video.findById(id);
 
@@ -134,7 +134,7 @@ const addTranscript = asyncHandler(async (req, res) => {
         }
 
         await video.save();
-        console.log("Transcript saved to database.");
+        // console.log("Transcript saved to database.");
 
         // Respond to the client before running async tasks
         res.status(200).json({
@@ -143,7 +143,7 @@ const addTranscript = asyncHandler(async (req, res) => {
 
         // Only vectorize the English transcript (skip the original transcript)
         if (!video.transcript.english || video.transcript.english.length === 0) {
-            console.log(`No English transcript for video ID ${id}, skipping vectorization.`);
+            // console.log(`No English transcript for video ID ${id}, skipping vectorization.`);
             return;
         }
 

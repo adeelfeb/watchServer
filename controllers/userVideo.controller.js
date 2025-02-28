@@ -117,17 +117,17 @@ const addVideo = asyncHandler(async (req, res) => {
   setImmediate(async () => {
     if (!video.requestSent && apiUrl) {
       try {
-        console.log("🔄 Sending video data to external API...", apiUrl);
+        // console.log("🔄 Sending video data to external API...", apiUrl);
 
         // Determine the appropriate server URL based on environment
         const serverUrl = process.env.NODE_ENV === "development"
           ? config.ngrokUrl // Use ngrok in development
           : process.env.RENDER_EXTERNAL_URL; // Use hosting URL in production
-
+        // console.log("the URL is:", serverUrl)
         const response = await axios.post(apiUrl, {
           videoId: video._id,
           videoUrl: videoUrl,
-          serverUrl: serverUrl // Dynamically set server URL
+          serverUrl: serverUrl 
         });
 
         if (response.data) {

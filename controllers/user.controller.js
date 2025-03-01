@@ -5,6 +5,115 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken"
 import mongoose from "mongoose";
+import { Video } from "../models/video.model.js"; // Import Video model
+import axios from "axios"; // For external API requests
+import config from "../src/conf.js";
+
+
+const uploadVideo = asyncHandler(async (req, res) => {
+    // Check if video file is present
+    if (!req.file) {
+      throw new ApiError(400, "Video file is required");
+    }
+
+    // console.log("inside the uplaod funciton")
+  
+    // Upload video to Cloudinary
+    const videoLocalPath = req.file.path;
+    const videoName = req.file.originalname;
+    const video = await uploadOnCloudinary(videoLocalPath, "videos"); // Specify folder as "videos"
+  
+    if (!video) {
+      throw new ApiError(500, "Video upload failed");
+    }
+  
+    // Format duration from seconds to mm:ss
+    const formatDuration = (durationInSeconds) => {
+      const minutes = Math.floor(durationInSeconds / 60);
+      const seconds = Math.floor(durationInSeconds % 60);
+      return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+    };
+  
+    const formattedDuration = formatDuration(video.duration);
+  
+    // Create a new Video document in MongoDB
+    const newVideo = new Video({
+      videoUrl: video.url,
+      duration: formattedDuration,
+      title: videoName,
+      requestSent: false, // Initially set to false
+    });
+  
+    // Save the video to MongoDB
+    await newVideo.save();
+    
+    // Fetch the user from the request (assuming the user is authenticated)
+    const userId = req.user._id; // Assuming `req.user` contains the authenticated user
+    // console.log("done saving the video inside the mongoDB and user id is:", userId)
+
+    const user = await User.findById(userId).populate("watchHistory");
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+  
+    // Check if the video is already in the user's watch history
+    const alreadyInHistory = user.watchHistory.some(
+      (v) => v.videoUrl === newVideo.videoUrl
+    );
+  
+    if (!alreadyInHistory) {
+      // Add the video to the user's watch history
+      user.watchHistory.push(newVideo._id);
+      await user.save();
+    }
+  
+    // Send response to frontend immediately
+    res.status(201).json(
+      new ApiResponse(
+        201,
+        newVideo,
+        alreadyInHistory
+          ? "Video already in watch history"
+          : "Video uploaded and added to watch history"
+      )
+    );
+  
+    // Use `setImmediate` to handle the external API request in the background
+    setImmediate(async () => {
+      const apiUrl = config.externalEndpoints.url1; // External API URL
+  
+      if (apiUrl) {
+        try {
+          // Determine the appropriate server URL based on environment
+          const serverUrl = process.env.NODE_ENV === "development"
+            ? config.ngrokUrl // Use ngrok in development
+            : process.env.RENDER_EXTERNAL_URL; // Use hosting URL in production
+  
+          // Send video data to external API
+          const response = await axios.post(apiUrl, {
+            videoId: newVideo._id,
+            videoUrl: newVideo.videoUrl,
+            serverUrl: serverUrl,
+          });
+  
+          if (response.data) {
+            console.log("✅ Request successful. Marking as sent.");
+            newVideo.requestSent = true; // Mark request as successful
+          } else {
+            console.warn("⚠️ External API did not return a valid response.");
+            newVideo.requestSent = false; // Allow retry
+          }
+        } catch (error) {
+          console.error("❌ Error sending request. API might be down:", error.message);
+          newVideo.requestSent = false; // Allow retry
+        }
+  
+        // Save the updated video document
+        await newVideo.save();
+      }
+    });
+  });
+
 
 
 const generateAccessAndRefreshToken = async (userId)=>{
@@ -23,7 +132,6 @@ const generateAccessAndRefreshToken = async (userId)=>{
         throw new ApiError(500, "Something went wrong while generating Access and Refresh Token")
     }
 }
-
 
 const registerUser = asyncHandler(async (req, res) => {
 
@@ -420,5 +528,6 @@ export { registerUser,
     updateAccountDetails,
     updateUserAvatar,
     updateUserCoverImage,
-    loginWithTempToken
+    loginWithTempToken,
+    uploadVideo
  };

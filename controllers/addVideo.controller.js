@@ -47,7 +47,7 @@ const DeleteVideo = asyncHandler(async (req, res) => {
     const { id, VideoDetail } = req.body; // Destructure id and videoDetail from the request body
     const { title, thumbnail, duration, video_url } = VideoDetail; // Destructure video details
   
-    console.log("The video details are:", VideoDetail);
+    // console.log("The video details are:", VideoDetail);
   
     // Validate required fields
     if (!id) {

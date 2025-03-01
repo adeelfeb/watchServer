@@ -1,27 +1,53 @@
-import {Router} from "express"
-import { registerUser,loginWithTempToken,  loginUser, logoutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage } from "../controllers/user.controller.js"
-import { upload } from "../middlewares/multer.middleware.js"
-import { verifyJWT } from "../middlewares/auth.middleware.js"
-import { getWatchHistory, addVideo, getTranscript, getSummary, getQnas, keyconcept, storeAssessment, deleteHistory, getScore, DeleteVideo, getAllVideos, DeleteVideos } from "../controllers/userVideo.controller.js"
+import { Router } from "express";
+import { registerUser, loginWithTempToken, loginUser, logoutUser,uploadVideo,  refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage } from "../controllers/user.controller.js";
+import { upload } from "../middlewares/multer.middleware.js";
+import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { getWatchHistory, addVideo, getTranscript, getSummary, getQnas, keyconcept, storeAssessment, deleteHistory, getScore, DeleteVideo, getAllVideos, DeleteVideos } from "../controllers/userVideo.controller.js";
 import { addFileData, getFileHistory, getVectorData } from "../controllers/userFileData.controller.js";
-import { insertChat, getChatHistory } from "../controllers/userChat.controller.js"; 
+import { insertChat, getChatHistory } from "../controllers/userChat.controller.js";
+import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { asyncHandler } from "../utils/asyncHandler.js"; // Import asyncHandler
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import multer from "multer"; // Import multer
 
-const router = Router()
+const router = Router();
 
-router.route("/register").post(
-    upload.fields([
-    {
-        name: "avatar",
-        maxCount: 1
-    },
-    {
-        name: "coverImage",
-        maxCount: 1
+// Route to handle video upload
+router.route("/upload-video").post(verifyJWT, 
+    upload.single("video"), // Use Multer middleware to handle single file upload
+    uploadVideo
+);
+
+// Error handling middleware for Multer errors
+router.use((err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        // Handle Multer errors (e.g., file size exceeded)
+        return res.status(400).json(
+            new ApiResponse(400, null, err.message)
+        );
+    } else if (err) {
+        // Handle other errors
+        return res.status(500).json(
+            new ApiResponse(500, null, err.message)
+        );
     }
-    ]),
-    registerUser)
+    next();
+});
 
-
+    
+    router.route("/register").post(
+        upload.fields([
+        {
+            name: "avatar",
+            maxCount: 1
+        },
+        {
+            name: "coverImage",
+            maxCount: 1
+        }
+        ]),
+        registerUser)
 router.route("/login").post(loginUser)
 router.route("/login-with-temp-token").post(loginWithTempToken)
 // These routes are secure since using verifyJWT thingi is being used

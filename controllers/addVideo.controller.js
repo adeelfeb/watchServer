@@ -153,7 +153,7 @@ const DeleteVideo = asyncHandler(async (req, res) => {
 
 const addTranscript = asyncHandler(async (req, res) => {
     const { id, english, original } = req.body;
-  // console.log("inside the transcript:", english, original)
+  // console.log("inside the transcript:", req.body)
     try {
         const video = await Video.findById(id);
 

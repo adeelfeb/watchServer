@@ -4,7 +4,6 @@ import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken"
-import mongoose from "mongoose";
 import { Video } from "../models/video.model.js"; // Import Video model
 import axios from "axios"; // For external API requests
 import config from "../src/conf.js";
@@ -80,8 +79,8 @@ const uploadVideo = asyncHandler(async (req, res) => {
   
     // Use `setImmediate` to handle the external API request in the background
     setImmediate(async () => {
-      const apiUrl = config.externalEndpoints.url1; // External API URL
-  
+      const apiUrl = `${config.externalEndpoints.url1}-video`; // External API URL
+        // console.log("external API is:", apiUrl)
       if (apiUrl) {
         try {
           // Determine the appropriate server URL based on environment
@@ -104,7 +103,7 @@ const uploadVideo = asyncHandler(async (req, res) => {
             newVideo.requestSent = false; // Allow retry
           }
         } catch (error) {
-          console.error("❌ Error sending request. API might be down:", error.message);
+          console.error("❌ Error sending request. ", error.message);
           newVideo.requestSent = false; // Allow retry
         }
   

@@ -178,6 +178,34 @@ const getTranscript = asyncHandler(async (req, res) => {
   });
 
 
+
+const getVideoDetails = asyncHandler(async (req, res) => {
+  const videoId = req.query.videoId || req.body.videoId || req.params;
+  // console.log("Inside the getTranscript :", videoId);
+  
+    if (!videoId) {
+      throw new ApiError(400, "Video ID is required.");
+    }
+  
+    // Find the video by its ID
+    const video = await Video.findById(videoId);
+  
+    if (!video) {
+      throw new ApiError(404, "Video not found.");
+    }
+  
+    // Extract the transcript (default to English for this example)
+    const title = video.title || {};
+    const duration = video.duration || {}
+  
+    return res.status(200).json(
+      new ApiResponse(200, { 
+        title,
+        duration }, "Transcript fetched successfully")
+    );
+  });
+
+
 const keyconcept = asyncHandler(async (req, res) => {
   const videoId = req.query.videoId || req.body.videoId || req.params;
   // console.log("Inside the getTranscript :", videoId);
@@ -560,5 +588,6 @@ export{
     getScore,
     DeleteVideo,
     getAllVideos,
-    DeleteVideos
+    DeleteVideos,
+    getVideoDetails
 }

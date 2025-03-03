@@ -108,6 +108,73 @@ import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
+// const userSchema = new Schema(
+//   {
+//     username: {
+//       type: String,
+//       required: true,
+//       unique: true,
+//       lowercase: true,
+//       trim: true,
+//       index: true,
+//     },
+//     email: {
+//       type: String,
+//       required: true,
+//       unique: true,
+//       lowercase: true,
+//       trim: true,
+//     },
+//     fullname: {
+//       type: String,
+//       required: true,
+//       trim: true,
+//       index: true,
+//     },
+//     avatar: {
+//       type: String,
+//       required: true,
+//     },
+//     coverImage: {
+//       type: String,
+//     },
+//     watchHistory: [
+//       {
+//         type: mongoose.Schema.Types.ObjectId,
+//         ref: "Video",
+//       },
+//     ],
+//     password: {
+//       type: String,
+//       required: function () {
+//         // Password is required only for local authentication
+//         return this.authProvider === "local";
+//       },
+//     },
+//     refreshToken: {
+//       type: String,
+//       default: null,
+//     },
+//     googleId: {
+//       type: String,
+//       unique: true,
+//       sparse: true, // Allow this field to be null for non-Google users
+//     },
+//     firebaseUid: {
+//       type: String,
+//       unique: true,
+//       sparse: true, // Allow this field to be null for non-Firebase users
+//     },
+//     authProvider: {
+//       type: String,
+//       enum: ["local", "google"], // Track the authentication provider
+//       default: "local",
+//     },
+//   },
+//   { timestamps: true }
+// );
+
+
 const userSchema = new Schema(
   {
     username: {
@@ -146,10 +213,16 @@ const userSchema = new Schema(
     ],
     password: {
       type: String,
-      required: function () {
-        // Password is required only for local authentication
-        return this.authProvider === "local";
+      validate: {
+        validator: function (value) {
+          return this.authProvider === "local" ? !!value : true;
+        },
+        message: "Password is required for local authentication",
       },
+    },
+    hasPassword: {
+      type: Boolean,
+      default: false, // Tracks if user has set a password
     },
     refreshToken: {
       type: String,
@@ -158,23 +231,25 @@ const userSchema = new Schema(
     googleId: {
       type: String,
       unique: true,
-      sparse: true, // Allow this field to be null for non-Google users
+      sparse: true, // Allows null values
     },
     firebaseUid: {
       type: String,
       unique: true,
-      sparse: true, // Allow this field to be null for non-Firebase users
+      sparse: true, // Allows null values
     },
     authProvider: {
       type: String,
-      enum: ["local", "google"], // Track the authentication provider
+      enum: ["local", "google"],
       default: "local",
     },
   },
   { timestamps: true }
 );
 
-// Hash the password before saving (only for local authentication)
+
+
+
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   try {

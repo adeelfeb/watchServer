@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { registerUser, loginWithTempToken, googleAuth , loginUser, logoutUser,uploadVideo,  refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage } from "../controllers/user.controller.js";
+import { registerUser, loginWithTempToken,checkPassword, forgetPassword, googleAuth , loginUser, logoutUser,uploadVideo,  refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { getWatchHistory, addVideo, getTranscript, getSummary, getQnas, keyconcept, storeAssessment, deleteHistory, getScore, DeleteVideo, getAllVideos, DeleteVideos } from "../controllers/userVideo.controller.js";
+import { getWatchHistory, addVideo, getVideoDetails, getTranscript, getSummary, getQnas, keyconcept, storeAssessment, deleteHistory, getScore, DeleteVideo, getAllVideos, DeleteVideos } from "../controllers/userVideo.controller.js";
 import { addFileData, getFileHistory, getVectorData } from "../controllers/userFileData.controller.js";
 import { insertChat, getChatHistory } from "../controllers/userChat.controller.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
@@ -77,10 +77,12 @@ router.route("/register").post(
 // Add this route
 router.route("/google-auth").post(googleAuth);
 router.route("/login").post(loginUser)
+router.route("/forget-password").post(forgetPassword)
 router.route("/login-with-temp-token").post(loginWithTempToken)
 // These routes are secure since using verifyJWT thingi is being used
 router.route("/logout").post(verifyJWT, logoutUser)
 router.route("/change-password").patch(verifyJWT, changeCurrentPassword)
+router.route("/check-password").patch(verifyJWT, checkPassword)
 router.route("/current-user").post(verifyJWT, getCurrentUser)
 router.route("/update-account").patch(verifyJWT, updateAccountDetails)
 router.route("/update-avatar").patch(verifyJWT, upload.single("avatar"), updateUserAvatar )
@@ -89,6 +91,7 @@ router.route("/addVideo").post(verifyJWT, addVideo); // Add video endpoint
 
 
 // Video-related routes (with JWT verification)
+router.route("/videoDetails").get(verifyJWT, getVideoDetails);  // Get transcript for a video
 router.route("/transcript").get(verifyJWT, getTranscript);  // Get transcript for a video
 router.route("/summary").get(verifyJWT, getSummary);      // Get summary for a video
 router.route("/qnas").get(verifyJWT, getQnas);  

@@ -96,63 +96,6 @@ const generateAccessAndRefreshToken = async (userId)=>{
 
 
 
-//   const googleAuth = asyncHandler(async (req, res) => {
-//     console.log("inside the googleauth:", req.body)
-//     const { idToken } = req.body; // Get Firebase ID token from frontend
-
-//     if (!idToken) {
-//         throw new ApiError(400, "ID token is required");
-//     }
-
-//     try {
-//         // Verify Firebase ID token
-//         const decodedToken = await admin.auth().verifyIdToken(idToken);
-//         const { uid, email, name, picture } = decodedToken;
-
-//         // Check if user exists in MongoDB
-//         let user = await User.findOne({ firebaseUid: uid });
-
-//         if (!user) {
-//           // Generate a unique username if not provided
-//           const username = name.replace(/\s+/g, "").toLowerCase();
-//           const existingUser = await User.findOne({ username });
-//           if (existingUser) {
-//               throw new ApiError(409, "Username already exists. Please choose a different one.");
-//           }
-      
-//           // Create new user in MongoDB
-//           user = await User.create({
-//               firebaseUid: uid,
-//               email,
-//               username,
-//               fullName: name,
-//               avatar: picture || "https://res.cloudinary.com/dk06hi9th/image/upload/v1732198388/zgwzdyhy3nldkk2inxpl.jpg", // Default avatar
-//               authProvider: "google",
-//           });
-//       }
-
-//         // Generate access and refresh tokens
-//         const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
-
-//         // Set cookies for authentication
-//         const options = {
-//             httpOnly: true,
-//             secure: true, // Required for HTTPS
-//             sameSite: "none", // Allows cross-origin cookies
-//         };
-
-//         return res
-//             .status(200)
-//             .cookie("accessToken", accessToken, options)
-//             .cookie("refreshToken", refreshToken, options)
-//             .json(new ApiResponse(200, { accessToken, refreshToken, user }, "User authenticated successfully"));
-
-//     } catch (error) {
-//         console.error("Google authentication failed:", error);
-//         throw new ApiError(401, "Invalid or expired ID token");
-//     }
-// });
-
 
 
 const googleAuth = asyncHandler(async (req, res) => {
@@ -484,38 +427,122 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 
+// const checkPassword = asyncHandler(async (req, res) => {
+    
+//     const user = await User.findById(req.user?._id);
+//     if (!user) {
+//         throw new ApiError(404, "User not found");
+//     }
+
+//     // Check if password is set
+//     const hasPassword = !!user.password; 
+
+//     if (!hasPassword) {
+//         // console.log("has password is false:", hasPassword)
+//         return res.status(202).json(new ApiResponse(202, "No password set"));
+//     }
+//     // console.log("has password is true:", hasPassword)
+
+
+//     return res.status(200).json(new ApiResponse(200, "Password available"));
+// });
+
+
+// const changeCurrentPassword = asyncHandler(async (req, res) => {
+//     const { oldPassword, newPassword } = req.body;
+//     console.log("the passwords are:", oldPassword, newPassword)
+//     const user = await User.findById(req.user?._id);
+    
+//     if (!user) {
+//         throw new ApiError(404, "User not found");
+//     }
+    
+//     // If user signed up via Google, allow setting password directly
+//     if (!user.password) {
+//         console.log("inside the set new password if statement")
+//         user.password = newPassword;
+//         await user.save({ validateBeforeSave: false });
+//         return res.status(200).json(new ApiResponse(200, "Password set successfully"));
+//     }
+    
+//     // Otherwise, verify old password
+//     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+//     if (!isPasswordCorrect) {
+//         throw new ApiError(400, "Old password is incorrect");
+//     }
+    
+//     user.password = newPassword;
+//     await user.save({ validateBeforeSave: false });
+//     return res.status(200).json(new ApiResponse(200, "Password changed successfully"));
+// });
+
+
+const checkPassword = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user?._id);
+    // console.log("inside the check funciton")
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    // Determine if the user has a password set
+    const hasPassword = !!user.password; 
+
+    if (!hasPassword) {
+        // console.log("has password is false:", hasPassword)
+        return res.status(202).json(new ApiResponse(202, "No password set", { hasPassword: false }));
+    }
+    // console.log("has password is true:", hasPassword)
+
+
+    return res.status(200).json(new ApiResponse(200, "Password available", { hasPassword: true }));
+});
+
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
-    // console.log("Inside the change password:", req.body)
-
-    // Find the user from the database and ensure it's awaited
     const user = await User.findById(req.user?._id);
     
     if (!user) {
         throw new ApiError(404, "User not found");
     }
+    
+    // If user has no password, allow setting it directly
+    if (!user.password) {
+        user.password = newPassword;
+        user.hasPassword = true; // Ensure this field is updated
+        await user.save({ validateBeforeSave: false });
 
-    // Use the isPasswordCorrect method defined in the schema
+        return res.status(200).json(new ApiResponse(200, "Password set successfully", { hasPassword: true }));
+    }
+    
+    // Verify old password before allowing change
     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
-
     if (!isPasswordCorrect) {
         throw new ApiError(400, "Old password is incorrect");
     }
-
-    // Set the new password and save it
+    
     user.password = newPassword;
     await user.save({ validateBeforeSave: false });
 
-    return res.status(200).json(
-        new ApiResponse(200, "Password changed successfully")
-    );
+    return res.status(200).json(new ApiResponse(200, "Password changed successfully", { hasPassword: true }));
 });
+
 
 
 const getCurrentUser = asyncHandler(async (req, res)=>{
     // console.log("User Authenticated")
     return res.status(200)
     .json(new ApiResponse(200, req.user, "Current user fetched Successfully"))
+})
+
+
+const forgetPassword = asyncHandler(async (req, res)=>{
+    const {email} = req.body
+    if(!email){
+        return res.status(401).json(new ApiResponse(401, {}, "Please provide Email"))
+    }
+    console.log("User mail recieved:", email)
+    return res.status(200)
+    .json(new ApiResponse(200, {}, "Mail sent successfully"))
 })
 
 
@@ -627,5 +654,7 @@ export { registerUser,
     updateUserCoverImage,
     loginWithTempToken,
     uploadVideo,
-    googleAuth
+    googleAuth,
+    checkPassword,
+    forgetPassword
  };

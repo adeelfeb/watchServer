@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { registerUser, loginWithTempToken, loginUser, logoutUser,uploadVideo,  refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage } from "../controllers/user.controller.js";
+import { registerUser, loginWithTempToken, googleAuth , loginUser, logoutUser,uploadVideo,  refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { getWatchHistory, addVideo, getTranscript, getSummary, getQnas, keyconcept, storeAssessment, deleteHistory, getScore, DeleteVideo, getAllVideos, DeleteVideos } from "../controllers/userVideo.controller.js";
@@ -35,8 +35,31 @@ router.use((err, req, res, next) => {
     next();
 });
 
+
+// 🔹 Upload Route for Videos
+router.post("/upload-video", verifyJWT, upload.single("video"), uploadVideo);
+
+// 🔹 Register Route (Handles Avatar & Cover Image)
+router.post("/register", 
+    upload.fields([
+        { name: "avatar", maxCount: 1 },
+        { name: "coverImage", maxCount: 1 }
+    ]), 
+    registerUser
+);
+
+// 🔹 Unified Error Handling
+router.use((err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        return res.status(400).json(new ApiResponse(400, null, `Multer Error: ${err.message}`));
+    } else if (err) {
+        return res.status(400).json(new ApiResponse(400, null, err.message));
+    }
+    next();
+});
+
     
-    router.route("/register").post(
+router.route("/register").post(
         upload.fields([
         {
             name: "avatar",
@@ -48,6 +71,11 @@ router.use((err, req, res, next) => {
         }
         ]),
         registerUser)
+
+
+
+// Add this route
+router.route("/google-auth").post(googleAuth);
 router.route("/login").post(loginUser)
 router.route("/login-with-temp-token").post(loginWithTempToken)
 // These routes are secure since using verifyJWT thingi is being used

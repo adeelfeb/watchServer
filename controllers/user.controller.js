@@ -7,6 +7,257 @@ import jwt from "jsonwebtoken"
 import { Video } from "../models/video.model.js"; // Import Video model
 import axios from "axios"; // For external API requests
 import config from "../src/conf.js";
+// import admin from "firebase-admin";
+import {admin} from '../utils/firebase.js'
+
+
+
+
+
+const registerUser = asyncHandler(async (req, res) => {
+    const { fullname, email, password, username, firebaseUid } = req.body;
+
+    // Validate required fields
+    if (!fullname || !email || !username) {
+        return res.status(400).json(new ApiResponse(400, null, "Full name, email, and username are required"));
+    }
+
+    // Check if user already exists
+    const existedUser = await User.findOne({ $or: [{ username }, { email }] });
+
+    if (existedUser) {
+        return res.status(409).json(new ApiResponse(409, null, "User already exists. Please use a different email or username."));
+    }
+
+    // Handle avatar and cover image upload
+    const avatarLocalPath = req.files?.avatar?.[0]?.path || null;
+    const coverImageLocalPath = req.files?.coverImage?.[0]?.path || null;
+
+    let avatarUrl = "";
+    if (avatarLocalPath) {
+        const avatar = await uploadOnCloudinary(avatarLocalPath);
+        if (!avatar) {
+            return res.status(400).json(new ApiResponse(400, null, "Avatar upload failed. Try again."));
+        }
+        avatarUrl = avatar.url;
+    }
+
+    let coverImageUrl = "";
+    if (coverImageLocalPath) {
+        const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+        coverImageUrl = coverImage?.url || "";
+    }
+
+    // Create user
+    const user = await User.create({
+        fullname,
+        avatar: avatarUrl || "https://res.cloudinary.com/dk06hi9th/image/upload/v1732198388/zgwzdyhy3nldkk2inxpl.jpg",
+        coverImage: coverImageUrl || "https://res.cloudinary.com/dk06hi9th/image/upload/v1732198259/dbkm9wciwhs8njns81de.jpg",
+        email,
+        password: password || null,
+        username: username.toLowerCase(),
+        firebaseUid: firebaseUid || undefined, // Prevent storing `null`
+        authProvider: firebaseUid ? "google" : "local",
+    });
+
+    const createdUser = await User.findById(user._id).select("-password -refreshToken");
+
+    if (!createdUser) {
+        return res.status(500).json(new ApiResponse(500, null, "Something went wrong while registering the user."));
+    }
+
+    // Generate tokens
+    const temporaryToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
+
+    return res.status(201).json(new ApiResponse(201, { accessToken, refreshToken, temporaryToken }, "User registered and logged in successfully"));
+});
+
+  
+
+
+
+const generateAccessAndRefreshToken = async (userId)=>{
+    try {
+        const user = await User.findById(userId)
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
+        user.refreshToken = refreshToken
+        await user.save({validateBeforeSave: false})
+
+        return {accessToken, refreshToken}
+
+
+
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong while generating Access and Refresh Token")
+    }
+}
+
+
+
+//   const googleAuth = asyncHandler(async (req, res) => {
+//     console.log("inside the googleauth:", req.body)
+//     const { idToken } = req.body; // Get Firebase ID token from frontend
+
+//     if (!idToken) {
+//         throw new ApiError(400, "ID token is required");
+//     }
+
+//     try {
+//         // Verify Firebase ID token
+//         const decodedToken = await admin.auth().verifyIdToken(idToken);
+//         const { uid, email, name, picture } = decodedToken;
+
+//         // Check if user exists in MongoDB
+//         let user = await User.findOne({ firebaseUid: uid });
+
+//         if (!user) {
+//           // Generate a unique username if not provided
+//           const username = name.replace(/\s+/g, "").toLowerCase();
+//           const existingUser = await User.findOne({ username });
+//           if (existingUser) {
+//               throw new ApiError(409, "Username already exists. Please choose a different one.");
+//           }
+      
+//           // Create new user in MongoDB
+//           user = await User.create({
+//               firebaseUid: uid,
+//               email,
+//               username,
+//               fullName: name,
+//               avatar: picture || "https://res.cloudinary.com/dk06hi9th/image/upload/v1732198388/zgwzdyhy3nldkk2inxpl.jpg", // Default avatar
+//               authProvider: "google",
+//           });
+//       }
+
+//         // Generate access and refresh tokens
+//         const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
+
+//         // Set cookies for authentication
+//         const options = {
+//             httpOnly: true,
+//             secure: true, // Required for HTTPS
+//             sameSite: "none", // Allows cross-origin cookies
+//         };
+
+//         return res
+//             .status(200)
+//             .cookie("accessToken", accessToken, options)
+//             .cookie("refreshToken", refreshToken, options)
+//             .json(new ApiResponse(200, { accessToken, refreshToken, user }, "User authenticated successfully"));
+
+//     } catch (error) {
+//         console.error("Google authentication failed:", error);
+//         throw new ApiError(401, "Invalid or expired ID token");
+//     }
+// });
+
+
+
+const googleAuth = asyncHandler(async (req, res) => {
+  // console.log("Inside Google Auth:", req.body);
+
+  const { idToken } = req.body; // Get Firebase ID token from frontend
+
+  if (!idToken) {
+      throw new ApiError(400, "ID token is required");
+  }
+
+  try {
+      // Verify Firebase ID token
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      // console.log("the decodedToken:", decodedToken)
+      const { uid, email, name, picture } = decodedToken;
+
+      // Check if user already exists in MongoDB
+      let user = await User.findOne({ email });
+
+      if (!user) {
+          // If user doesn't exist, create new user
+          user = await User.create({
+              firebaseUid: uid,
+              email,
+              username: name.replace(/\s+/g, "").toLowerCase(),
+              fullname: name,
+              avatar: picture,
+              authProvider: "google",
+          });
+      }
+
+      // Generate access and refresh tokens
+      const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
+
+      // Set authentication cookies
+      const cookieOptions = {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+      };
+
+      return res
+          .status(200)
+          .cookie("accessToken", accessToken, cookieOptions)
+          .cookie("refreshToken", refreshToken, cookieOptions)
+          .json(new ApiResponse(200, { accessToken, refreshToken, user }, "User authenticated successfully"));
+
+  } catch (error) {
+      console.error("Google authentication failed:", error);
+      throw new ApiError(401, "Invalid or expired ID token");
+  }
+});
+
+
+
+const loginUser = asyncHandler(async (req, res)=>{
+  const { email, password, username } = req.body;
+  // console.log(email,password, username)
+  
+  if(!(username || email)){
+      throw new ApiError(400, "User or email required")
+  }
+
+  const user = await User.findOne({
+      $or: [{username}, {email}]
+  })
+
+  if(!user){
+      throw new ApiError(404, "User does not exist")
+  }
+
+  const isPasswordValid = await user.isPasswordCorrect(password)
+
+  if(!isPasswordValid){
+      throw new ApiError(401, "Invalide user Credentials #Password")
+  }
+
+
+  const {accessToken, refreshToken} = await generateAccessAndRefreshToken(user._id)
+
+  const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+
+  const options = {
+      httpOnly: true,
+      secure: true, // Required for HTTPS
+      sameSite: 'none', // Required for cross-origin cookies
+  };
+  
+
+  return res.status(200)
+  .cookie("accessToken", accessToken, options)
+  .cookie("refreshToken", refreshToken, options)
+  .json(
+      new ApiResponse(200,
+          {
+              accessToken, refreshToken
+          },
+          "User LoggedIn successfully"
+      )
+  )
+
+})
+
+
 
 
 const uploadVideo = asyncHandler(async (req, res) => {
@@ -114,113 +365,6 @@ const uploadVideo = asyncHandler(async (req, res) => {
   });
 
 
-
-const generateAccessAndRefreshToken = async (userId)=>{
-    try {
-        const user = await User.findById(userId)
-        const accessToken = user.generateAccessToken()
-        const refreshToken = user.generateRefreshToken()
-        user.refreshToken = refreshToken
-        await user.save({validateBeforeSave: false})
-
-        return {accessToken, refreshToken}
-
-
-
-    } catch (error) {
-        throw new ApiError(500, "Something went wrong while generating Access and Refresh Token")
-    }
-}
-
-const registerUser = asyncHandler(async (req, res) => {
-
-    // console.log(req.body)
-    // Destructuring the incoming data from req.body
-    const { fullname, email, password, username } = req.body;
-
-    // To check for the special empty space character
-    const removeInvisibleChars = (str) => {
-        return str.replace(
-            /[\u200B\u200C\u200E\u200F\u202A-\u202E\u2060\u2061\u2062\u2063\u2064\u2065\u2066\u2067\u2068\u2069\u206A-\u206F\u200D\u200C\u200B\u202F\u205F\u3000\u00A0\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u200B\u200C\u200D\uFEFF]/g,
-            ""
-        );
-    };
-
-    // Ensure all fields are filled
-    if ([fullname, email, password, username].some((field) => removeInvisibleChars(field)?.trim() === "")) {
-        throw new ApiError(400, "All fields are required");
-    }
-
-    // Check if user already exists
-    const existedUser = await User.findOne({
-        $or: [{ username }, { email }],
-    });
-
-    if (existedUser) {
-        throw new ApiError(409, "User Already exists");
-    }
-
-    // Ensure avatar is present in req.files if it exists, else use default
-    const avatarLocalPath = req.files?.avatar?.[0]?.path || null;
-    const coverImageLocalPath = req.files?.coverImage?.[0]?.path || null;
-
-    let avatarUrl = "";  // Default avatar URL in case there's no avatar provided
-    if (avatarLocalPath) {
-        // Upload avatar to Cloudinary if it is provided
-        const avatar = await uploadOnCloudinary(avatarLocalPath);
-
-        if (!avatar) {
-            throw new ApiError(400, "Avatar upload failed");
-        }
-
-        avatarUrl = avatar.url;
-    }
-
-    // Upload cover image to Cloudinary if present
-    let coverImageUrl = "";
-    if (coverImageLocalPath) {
-        const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-        coverImageUrl = coverImage?.url || "";
-    }
-
-    // Create user in the database
-    const user = await User.create({
-        fullname,
-        avatar: avatarUrl || "https://res.cloudinary.com/dk06hi9th/image/upload/v1732198388/zgwzdyhy3nldkk2inxpl.jpg",  // Use default avatar if not provided
-        coverImage: coverImageUrl || "https://res.cloudinary.com/dk06hi9th/image/upload/v1732198259/dbkm9wciwhs8njns81de.jpg",  // Use default cover image if not provided
-        email,
-        password,
-        username: username.toLowerCase(),
-    });
-
-    // Fetch the created user without sensitive fields
-    const createdUser = await User.findById(user._id).select("-password -refreshToken");
-
-    if (!createdUser) {
-        throw new ApiError(500, "Something went wrong while registering the user");
-    }
-
-
-     // Generate a temporary login token after user registration
-     const temporaryToken = jwt.sign(
-        { userId: user._id }, 
-        process.env.JWT_SECRET, 
-        { expiresIn: '1h' }  // The token expires after 1 hour
-    );
-
-    // Send the temporary token to login the user
-    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
-
-    // Fetch the created user without sensitive fields
-
-    // Send successful response including temporary login token
-    return res.status(201).json(new ApiResponse(200, {
-        accessToken,
-        refreshToken,
-        temporaryToken  // Return the temporary token as part of the response
-    }, "User registered and logged in successfully"));
-});
-
 const loginWithTempToken = asyncHandler(async (req, res) => {
     const { token: temporaryToken } = req.body;  // Extract token from the request body
 
@@ -263,53 +407,7 @@ const loginWithTempToken = asyncHandler(async (req, res) => {
 
 
 
-const loginUser = asyncHandler(async (req, res)=>{
-    const { email, password, username } = req.body;
-    // console.log(email,password, username)
-    
-    if(!(username || email)){
-        throw new ApiError(400, "User or email required")
-    }
 
-    const user = await User.findOne({
-        $or: [{username}, {email}]
-    })
-
-    if(!user){
-        throw new ApiError(404, "User does not exist")
-    }
-
-    const isPasswordValid = await user.isPasswordCorrect(password)
-
-    if(!isPasswordValid){
-        throw new ApiError(401, "Invalide user Credentials #Password")
-    }
-
-
-    const {accessToken, refreshToken} = await generateAccessAndRefreshToken(user._id)
-
-    const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
-
-    const options = {
-        httpOnly: true,
-        secure: true, // Required for HTTPS
-        sameSite: 'none', // Required for cross-origin cookies
-    };
-    
-
-    return res.status(200)
-    .cookie("accessToken", accessToken, options)
-    .cookie("refreshToken", refreshToken, options)
-    .json(
-        new ApiResponse(200,
-            {
-                accessToken, refreshToken
-            },
-            "User LoggedIn successfully"
-        )
-    )
-
-})
 
 const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(
@@ -528,5 +626,6 @@ export { registerUser,
     updateUserAvatar,
     updateUserCoverImage,
     loginWithTempToken,
-    uploadVideo
+    uploadVideo,
+    googleAuth
  };

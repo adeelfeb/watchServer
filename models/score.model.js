@@ -16,6 +16,7 @@ const scoreSchema = new Schema(
       {
         question: { type: String, required: true },
         givenAnswer: { type: String, required: true },
+        aiEvaluation: { type: String },
         correctAnswer: { type: String, default: "Not provided" }, // Optional field with default value
         score: { type: Number, default: 0 }, // Score assigned by LLM
       },

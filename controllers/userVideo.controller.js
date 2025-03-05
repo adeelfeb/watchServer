@@ -171,7 +171,7 @@ const getTranscript = asyncHandler(async (req, res) => {
     // If you want to return specific language, you can modify it like this:
     // const { english, hindi, urdu } = video.transcript;
     // In this case, you would return a specific one based on query parameter or user choice.
-  
+    // console.log("the transcritp is: ", transcript)
     return res.status(200).json(
       new ApiResponse(200, { transcript: transcript }, "Transcript fetched successfully")
     );
@@ -290,86 +290,83 @@ const getQnas = asyncHandler(async (req, res) => {
 
 
 
+
 const storeAssessment = asyncHandler(async (req, res) => {
   try {
-    const videoId = req.params.videoId || req.body.videoId || req.params.videoId;
-    const userId = req.user._id || req.query.userId || req.body.userId || req.params.userId;
+    const videoId = req.body.videoId || req.params.videoId || req.query.videoId;
+    const userId = req.user?._id || req.body.userId || req.params.userId || req.query.userId;
     const quiz = req.body.quiz;
 
-    // console.log("Inside the QnA:", quiz);
+    if (!quiz) return res.status(400).json({ message: "Quiz data is required." });
+    if (!videoId) return res.status(400).json({ message: "Video ID is required." });
+    if (!userId) return res.status(400).json({ message: "User ID is required." });
 
-    // Validate required fields
-    if (!quiz) {
-      return res.status(400).json({ message: "Quiz data is required." });
-    }
-    if (!videoId) {
-      return res.status(400).json({ message: "Video ID is required." });
-    }
-    if (!userId) {
-      return res.status(400).json({ message: "User ID is required." });
-    }
-
-    // Find video
     const video = await Video.findById(videoId);
-    if (!video) {
-      return res.status(404).json({ message: "Video not found." });
-    }
+    if (!video) return res.status(404).json({ message: "Video not found." });
 
-    // Process MCQ answers
     let mcqScore = 0;
     const mcqAnswers = quiz.mcqAnswers?.map(mcq => {
-      const isCorrect = mcq.correctAnswer ? mcq.selectedOption === mcq.correctAnswer : false; // Skip evaluation if correctAnswer is missing
+      const isCorrect = mcq.selectedOption === mcq.correctAnswer;
       if (isCorrect) mcqScore += 1;
       return {
         question: mcq.question,
         selectedOption: mcq.selectedOption,
-        correctOption: mcq.correctAnswer || "Not provided", // Default value if correctAnswer is missing
+        correctOption: mcq.correctAnswer || "Not provided",
         isCorrect,
-        score: isCorrect ? 1 : 0, // Assign score based on correctness
+        score: isCorrect ? 1 : 0,
       };
     }) || [];
 
-    // Process short answers (these will be evaluated later by LLM/chatbot)
     const shortAnswers = quiz.shortAnswers?.map(answer => ({
       question: answer.question,
       givenAnswer: answer.givenAnswer,
-      correctAnswer: answer.correctAnswer || "Not provided", // Default value if correctAnswer is missing
-      score: 0, // Placeholder for LLM evaluation
+      correctAnswer: answer.correctAnswer || "Not provided",
+      score: 0,
+      scoreIsEvaluated: false, // Mark for later evaluation
     })) || [];
 
-    // Process fill-in-the-blanks (assuming evaluation logic)
     let fillInTheBlanksScore = 0;
+    const normalizeAnswer = (answer) => {
+      if (!answer) return ""; 
+      return String(answer)
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, " ") // Replace multiple spaces with a single space
+        .replace(/[^\w\s]/g, ""); // Remove punctuation
+    };
+    
+    
+
     const fillInTheBlanks = quiz.fillInTheBlanks?.map(blank => {
-      const isCorrect = blank.correctAnswer ? blank.givenAnswer === blank.correctAnswer : false; // Skip evaluation if correctAnswer is missing
+      
+      const isCorrect = normalizeAnswer(blank.givenAnswer) === normalizeAnswer(blank.correctAnswer);
+      // console.log("the evaluation for ", blank.givenAnswer, " is:", isCorrect)
       if (isCorrect) fillInTheBlanksScore += 1;
       return {
         sentence: blank.question,
         givenAnswer: blank.givenAnswer,
-        correctAnswer: blank.correctAnswer || "Not provided", // Default value if correctAnswer is missing
+        correctAnswer: blank.correctAnswer || "Not provided",
         isCorrect,
-        score: isCorrect ? 1 : 0, // Assign score based on correctness
+        score: isCorrect ? 1 : 0,
       };
     }) || [];
 
-    // Calculate total score (MCQs + fill-in-the-blanks)
-    const totalScore = mcqScore + fillInTheBlanksScore; // Short answers not included yet
+    const totalScore = mcqScore + fillInTheBlanksScore;
 
-    // Construct score document
     const scoreData = {
       user: userId,
       video: videoId,
       shortAnswers,
       mcqs: mcqAnswers,
       fillInTheBlanks,
-      overallScore: totalScore, // Use overallScore instead of score
-      scoreIsEvaluated: false, // Set to false initially
+      overallScore: totalScore,
+      scoreIsEvaluated: false,
     };
 
-    // Save or update the score data
     const updatedScore = await Score.findOneAndUpdate(
-      { user: userId, video: videoId }, // Query to find the existing document
-      scoreData, // New data to overwrite
-      { upsert: true, new: true, runValidators: true } // Options: create if not exists, return updated document
+      { user: userId, video: videoId },
+      scoreData,
+      { upsert: true, new: true, runValidators: true }
     );
 
     return res.status(201).json({
@@ -382,6 +379,8 @@ const storeAssessment = asyncHandler(async (req, res) => {
     return res.status(500).json({ message: "Failed to store assessment", error: error.message });
   }
 });
+
+
 
 const getScore = asyncHandler(async (req, res) => {
   try {
@@ -414,6 +413,7 @@ const getScore = asyncHandler(async (req, res) => {
           givenAnswer: q.givenAnswer,
           correctAnswer: q.correctAnswer,
           score: q.score,
+          aiEvaluation: q.aiEvaluation
       }));
 
       const mcqs = score.mcqs.map(q => ({
@@ -441,6 +441,8 @@ const getScore = asyncHandler(async (req, res) => {
               fillInTheBlanks,
               overallScore,
               scoreIsEvaluated: score.scoreIsEvaluated, // Include score evaluation status
+              userId: user._id,
+              videoId: videoId
           }, "Scores and question details retrieved successfully")
       );
   } catch (error) {
@@ -451,6 +453,9 @@ const getScore = asyncHandler(async (req, res) => {
       }
   }
 });
+
+
+
 
 
 

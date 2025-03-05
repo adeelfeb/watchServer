@@ -1,7 +1,9 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Video } from "../models/video.model.js";
 import { parseAndStoreInPinecone } from "./pineConeVectorSaving.controller.js";
-import { Default_Youtube_URL } from "../src/constants.js";
+import { ApiError } from "../utils/ApiError.js";
+import { ApiResponse } from "../utils/ApiResponse.js";
+import { Score } from "../models/score.model.js";
 
 
 
@@ -393,8 +395,89 @@ const addQnas = asyncHandler(async (req, res) => {
 });
 
 
+const setScore = asyncHandler(async (req, res) => {
+  try {
+    const { userId, videoId, evaluation } = req.body;
 
+    // Validate required fields
+    if (!userId || !videoId || !evaluation) {
+      throw new ApiError(400, "Missing required fields: userId, videoId, or evaluation.");
+    }
 
+    // Process the evaluation array
+    const shortAnswers = [];
+    const mcqs = [];
+    const fillInTheBlanks = [];
+    let overallScore = 0;
+
+    evaluation.forEach((item) => {
+      if (item.type === "shortAnswer") {
+        shortAnswers.push({
+          question: item.question,
+          givenAnswer: item.userAnswer,
+          correctAnswer: item.correctAnswer,
+          score: item.score || 0, // Default to 0 if score is not provided
+          aiEvaluation: item.evaluation, 
+        });
+        overallScore += item.score || 0; // Add to overall score
+      } else if (item.type === "mcq") {
+        mcqs.push({
+          question: item.question,
+          selectedOption: item.userAnswer,
+          correctOption: item.correctAnswer,
+          isCorrect: item.isCorrect,
+          score: item.score, // 1 if correct, 0 otherwise
+        });
+        overallScore += item.isCorrect ? 1 : 0; // Add to overall score
+      } else if (item.type === "fillInTheBlank") {
+        fillInTheBlanks.push({
+          sentence: item.question,
+          givenAnswer: item.userAnswer,
+          correctAnswer: item.correctAnswer,
+          isCorrect: item.isCorrect,
+          score: item.score, // 1 if correct, 0 otherwise
+        });
+        overallScore += item.isCorrect ? 1 : 0; // Add to overall score
+      }
+    });
+
+    // Find or create the score document
+    let scoreDocument = await Score.findOne({ user: userId, video: videoId });
+
+    if (!scoreDocument) {
+      // Create a new score document if it doesn't exist
+      scoreDocument = new Score({
+        user: userId,
+        video: videoId,
+        shortAnswers,
+        mcqs,
+        fillInTheBlanks,
+        overallScore,
+        scoreIsEvaluated: true, // Mark evaluation as complete
+      });
+    } else {
+      // Update the existing score document
+      scoreDocument.shortAnswers = shortAnswers;
+      scoreDocument.mcqs = mcqs;
+      scoreDocument.fillInTheBlanks = fillInTheBlanks;
+      scoreDocument.overallScore = overallScore;
+      scoreDocument.scoreIsEvaluated = true; // Mark evaluation as complete
+    }
+
+    // Save the score document
+    await scoreDocument.save();
+
+    res.status(200).json(
+      new ApiResponse(200, scoreDocument, "Score evaluation has been stored successfully.")
+    );
+  } catch (error) {
+    if (error instanceof ApiError) {
+      res.status(error.statusCode).json({ message: error.message });
+    } else {
+      res.status(500).json({ message: "Failed to store score evaluation", error: error.message });
+    }
+  }
+});
 
 export {
     addTranscript,
@@ -403,6 +486,7 @@ export {
     addKeyconcept,
     addAssesment, 
     addVideoDetails,
-    DeleteVideo
+    DeleteVideo,
+    setScore
  };
  

@@ -102,56 +102,7 @@ const DeleteVideo = asyncHandler(async (req, res) => {
     }
   });
 
-// const addVideoDetails = asyncHandler(async (req, res) => {
-//   const { id, VideoDetail } = req.body; // Destructure id and videoDetail from the request body
-//   const { title, thumbnail, duration, video_url } = VideoDetail; // Destructure video details
-
-//   console.log("The video details are:", VideoDetail);
-
-//   // Validate required fields
-//   if (!id) {
-//     return res.status(400).json({ message: "Video ID is required" });
-//   }
-
-//   try {
-//     let video = await Video.findById(id);
-
-//     // If the video doesn't exist, create a new one
-//     if (!video) {
-//       video = new Video({
-//         _id: id, // Use the provided ID
-//         videoUrl: video_url || "https://www.youtube.com/watch?v=default", // Use the provided video URL or a default
-//         title: title || "Untitled Video", // Use the provided title or a default
-//         thumbnailUrl: thumbnail || "https://i.ytimg.com/vi/default/hqdefault.jpg", // Use the provided thumbnail or a default
-//         duration: duration || 0, // Use the provided duration or a default
-//       });
-//     } else {
-//       // Update existing video details if provided
-//       video.title = title || video.title;
-//       video.thumbnailUrl = thumbnail || video.thumbnailUrl;
-//       video.duration = duration || video.duration;
-//       video.videoUrl = video_url || video.videoUrl;
-//     }
-
-//     // Save the video to the database
-//     await video.save();
-
-//     // Respond to the client
-//     res.status(200).json({
-//       message: "Video details updated successfully",
-//       video,
-//     });
-//   } catch (error) {
-//     console.error("Error updating video details:", error.message);
-
-//     // Send error response
-//     res.status(500).json({
-//       message: "Failed to update video details",
-//       error: error.message,
-//     });
-//   }
-// });
-
+  
 
 const addTranscript = asyncHandler(async (req, res) => {
     const { id, english, original } = req.body;
@@ -206,7 +157,7 @@ const addTranscript = asyncHandler(async (req, res) => {
         // Run vectorization in the background using only the English transcript
         parseAndStoreInPinecone(fullTranscript, id)
             .then(() => {
-                console.log(`Transcript for video ID ${id} successfully vectorized and stored in Pinecone.`);
+                // console.log(`Transcript for video ID ${id} successfully vectorized and stored in Pinecone.`);
             })
             .catch((error) => {
                 console.error(`Error vectorizing transcript for video ID ${id}:`, error.message);
@@ -248,7 +199,7 @@ const addSummary = asyncHandler(async (req, res) => {
 
         // Save the updated video
         await video.save();
-        console.log("Done With Summary")
+        // console.log("Done With Summary")
 
 
         res.status(200).json({
@@ -273,14 +224,17 @@ const addKeyconcept = asyncHandler(async (req, res) => {
         return res.status(404).json({ message: "Video not found" });
       }
   
-      if (concept) {
+      if (concept.keyconcept.primary) {
         // Directly store the full concept text as primary for Markdown rendering
-        video.keyconcept.primary = concept.trim();
+        video.keyconcept.primary = concept.keyconcept.primary.trim();
+      }
+      else{
+        video.keyconcept.primary = concept.trim()
       }
   
       // Save the updated video
       await video.save();
-      console.log("done key-concepts")
+      // console.log("done key-concepts")
       res.status(200).json({
         message: "Keyconcept updated successfully",
         keyconcept: video.keyconcept,
@@ -395,6 +349,71 @@ const addQnas = asyncHandler(async (req, res) => {
 });
 
 
+const addFormatedQnas = asyncHandler(async (req, res) => {
+  const { id, formattedQuizData } = req.body; // Extract video ID and formatted quiz data
+
+  try {
+      // Find the video by ID
+      const video = await Video.findById(id);
+
+      if (!video) {
+          return res.status(404).json({ message: "Video not found" });
+      }
+
+      // Ensure `video.qnas` exists
+      if (!video.qnas) {
+          video.qnas = { shortAnswers: [], mcqs: [], fillInTheBlanks: [] };
+      }
+
+      // Clear existing Q&A data (optional, depending on your use case)
+      video.qnas.shortAnswers = [];
+      video.qnas.mcqs = [];
+      video.qnas.fillInTheBlanks = [];
+
+      // Add formatted quiz data to the video
+      
+      if (formattedQuizData.qnas) {
+          const { shortQuestions, mcqs, fillInTheBlanks } = formattedQuizData.qnas;
+
+          // Add short questions
+          if (shortQuestions && shortQuestions.length > 0) {
+              video.qnas.shortQuestions = shortQuestions.map((q) => ({
+                  question: q.question,
+                  correctAnswer: q.answer || "Not provided", // Use default if answer is missing
+              }));
+          }
+
+          // Add MCQs
+          if (mcqs && mcqs.length > 0) {
+              video.qnas.mcqs = mcqs.map((q) => ({
+                  question: q.question,
+                  correctOption: q.correctAnswer || "Not provided", // Use default if correctAnswer is missing
+                  options: q.options || ["Not provided"], // Use default if options are missing
+              }));
+          }
+
+          // Add fill-in-the-blanks
+          if (fillInTheBlanks && fillInTheBlanks.length > 0) {
+              video.qnas.fillInTheBlanks = fillInTheBlanks.map((q) => ({
+                  sentence: q.sentence,
+                  correctAnswer: q.missingWord || "Not provided", // Use default if missingWord is missing
+              }));
+          }
+      }
+
+      // Save the updated video
+      await video.save();
+
+      res.status(200).json({
+          message: "Q&A updated successfully",
+          data: video.qnas, // Optionally return the updated Q&A data
+      });
+  } catch (error) {
+      res.status(500).json({ message: "Failed to update Q&A", error: error.message });
+  }
+});
+
+
 const setScore = asyncHandler(async (req, res) => {
   try {
     const { userId, videoId, evaluation } = req.body;
@@ -481,6 +500,7 @@ const setScore = asyncHandler(async (req, res) => {
 
 export {
     addTranscript,
+    addFormatedQnas,
     addSummary,
     addQnas,
     addKeyconcept,

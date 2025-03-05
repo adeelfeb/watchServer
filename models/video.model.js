@@ -31,12 +31,23 @@ const videoSchema = new Schema(
     },
     description: { type: String, default: "No description Available For Now" },
     qnas: {
-      shortQuestions: [{ question: { type: String, required: true }, answer: { type: String } }],
+      shortQuestions: [
+        {
+          question: { type: String, required: true },
+          correctAnswer: { type: String, default: "Not provided" }, // Optional field with default value
+        },
+      ],
       mcqs: [
         {
           question: { type: String, required: true },
-          options: [{ type: String, required: true }],
-          correctAnswer: { type: String, required: true },
+          correctOption: { type: String, default: "Not provided" }, // Optional field with default value
+          options: [{ type: String, default: "Not provided" }]
+        },
+      ],
+      fillInTheBlanks: [
+        {
+          sentence: { type: String, required: true }, // The sentence with the blank
+          correctAnswer: { type: String, default: "Not provided" }, // Optional field with default value
         },
       ],
     },

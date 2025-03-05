@@ -168,10 +168,6 @@ const getTranscript = asyncHandler(async (req, res) => {
     // Extract the transcript (default to English for this example)
     const transcript = video.transcript || {};
   
-    // If you want to return specific language, you can modify it like this:
-    // const { english, hindi, urdu } = video.transcript;
-    // In this case, you would return a specific one based on query parameter or user choice.
-    // console.log("the transcritp is: ", transcript)
     return res.status(200).json(
       new ApiResponse(200, { transcript: transcript }, "Transcript fetched successfully")
     );
@@ -274,6 +270,7 @@ const getQnas = asyncHandler(async (req, res) => {
       if (!video) {
           return res.status(404).json({ message: "Video not found." });
       }
+      
 
       // Return QnAs
       return res.status(200).json({

@@ -427,55 +427,6 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 
-// const checkPassword = asyncHandler(async (req, res) => {
-    
-//     const user = await User.findById(req.user?._id);
-//     if (!user) {
-//         throw new ApiError(404, "User not found");
-//     }
-
-//     // Check if password is set
-//     const hasPassword = !!user.password; 
-
-//     if (!hasPassword) {
-//         // console.log("has password is false:", hasPassword)
-//         return res.status(202).json(new ApiResponse(202, "No password set"));
-//     }
-//     // console.log("has password is true:", hasPassword)
-
-
-//     return res.status(200).json(new ApiResponse(200, "Password available"));
-// });
-
-
-// const changeCurrentPassword = asyncHandler(async (req, res) => {
-//     const { oldPassword, newPassword } = req.body;
-//     console.log("the passwords are:", oldPassword, newPassword)
-//     const user = await User.findById(req.user?._id);
-    
-//     if (!user) {
-//         throw new ApiError(404, "User not found");
-//     }
-    
-//     // If user signed up via Google, allow setting password directly
-//     if (!user.password) {
-//         console.log("inside the set new password if statement")
-//         user.password = newPassword;
-//         await user.save({ validateBeforeSave: false });
-//         return res.status(200).json(new ApiResponse(200, "Password set successfully"));
-//     }
-    
-//     // Otherwise, verify old password
-//     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
-//     if (!isPasswordCorrect) {
-//         throw new ApiError(400, "Old password is incorrect");
-//     }
-    
-//     user.password = newPassword;
-//     await user.save({ validateBeforeSave: false });
-//     return res.status(200).json(new ApiResponse(200, "Password changed successfully"));
-// });
-
 
 const checkPassword = asyncHandler(async (req, res) => {
     const user = await User.findById(req.user?._id);

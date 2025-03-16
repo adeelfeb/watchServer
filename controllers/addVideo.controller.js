@@ -49,7 +49,7 @@ const DeleteVideo = asyncHandler(async (req, res) => {
     const { id, VideoDetail } = req.body; // Destructure id and videoDetail from the request body
     const { title, thumbnail, duration, video_url } = VideoDetail; // Destructure video details
   
-    // console.log("The video details are:", VideoDetail);
+    console.log("The video details are:", req.body);
   
     // Validate required fields
     if (!id) {
@@ -89,7 +89,65 @@ const DeleteVideo = asyncHandler(async (req, res) => {
       // Respond to the client
       res.status(200).json({
         message: "Video details updated successfully",
-        video,
+      });
+    } catch (error) {
+      console.error("Error updating video details:", error.message);
+  
+      // Send error response
+      res.status(500).json({
+        message: "Failed to update video details",
+        error: error.message,
+      });
+    }
+  });
+
+
+  const overLimit = asyncHandler(async (req, res) => {
+    const { id, video_details } = req.body; // Destructure id and videoDetail from the request body
+    const { title, thumbnail, duration, video_url } = video_details; // Destructure video details
+  
+    console.log("The video details are:", req.body);
+  
+    // Validate required fields
+    if (!id) {
+      return res.status(400).json({ message: "Video ID is required" });
+    }
+  
+    // Helper function to convert duration (in seconds) to "mm:ss" format
+    const formatDuration = (durationInSeconds) => {
+      const minutes = Math.floor(durationInSeconds / 60);
+      const seconds = durationInSeconds % 60;
+      return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    };
+  
+    try {
+      let video = await Video.findById(id);
+  
+      // If the video doesn't exist, create a new one
+      if (!video) {
+        video = new Video({
+          _id: id, // Use the provided ID
+          videoUrl: video_url || "https://www.youtube.com/watch?v=default", // Use the provided video URL or a default
+          title: title || "Untitled Video", // Use the provided title or a default
+          thumbnailUrl: thumbnail || "https://i.ytimg.com/vi/default/hqdefault.jpg", // Use the provided thumbnail or a default
+          duration: formatDuration(duration || 0), // Format the duration
+        });
+      } else {
+        // Update existing video details if provided
+        video.title = title || video.title;
+        video.thumbnailUrl = thumbnail || video.thumbnailUrl;
+        video.duration = formatDuration(duration || video.duration); // Format the duration
+        video.videoUrl = video_url || video.videoUrl;
+        video.overLimit = true
+      }
+  
+      // Save the video to the database
+      await video.save();
+      console.log("Response sending now from video OverLimit function to the Kaggle API")
+  
+      // Respond to the client
+      res.status(200).json({
+        message: "Video details updated successfully",
       });
     } catch (error) {
       console.error("Error updating video details:", error.message);
@@ -106,7 +164,7 @@ const DeleteVideo = asyncHandler(async (req, res) => {
 
 const addTranscript = asyncHandler(async (req, res) => {
     const { id, english, original } = req.body;
-  // console.log("inside the transcript:", req.body)
+  console.log("inside the transcript:", req.body)
     try {
         const video = await Video.findById(id);
 
@@ -507,6 +565,7 @@ export {
     addAssesment, 
     addVideoDetails,
     DeleteVideo,
-    setScore
+    setScore,
+    overLimit
  };
  

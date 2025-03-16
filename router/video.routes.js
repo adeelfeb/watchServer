@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addTranscript, addSummary, addQnas, addKeyconcept, addVideoDetails, DeleteVideo, setScore, addFormatedQnas } from "../controllers/addVideo.controller.js";
+import { addTranscript, addSummary, addQnas, addKeyconcept, addVideoDetails, DeleteVideo, setScore, addFormatedQnas, overLimit } from "../controllers/addVideo.controller.js";
 
 const router = Router();
 
@@ -10,6 +10,7 @@ router.route("/addQnas").post(addQnas);
 router.route("/addQnas-formated").post(addFormatedQnas);
 router.route("/addKeyconcept").post(addKeyconcept);
 router.route("/addVideoDetails").post(addVideoDetails);
+router.route("/limitIssue").post(overLimit);
 router.route("/score").post(setScore);
 router.route("/deleteVideo").delete(DeleteVideo);
 

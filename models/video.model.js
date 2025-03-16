@@ -18,12 +18,14 @@ const videoSchema = new Schema(
     transcript: {
       english: [{ timestamp: [Number], text: { type: String, required: true } }],
       original: [{ timestamp: [Number], text: { type: String, required: true } }],
+      text: {type: String, default: "NA"}
     },
     requestSent: { type: Boolean, default: false },
     summary: {
       english: { type: String, default: "NA" },
       original: { type: String, default: "NA" },
     },
+    overLimit: {type: Boolean, default: false},
     keyconcept: {
       primary: { type: String, default: "NA" },
       secondary: [{ Question: { type: String, required: true }, Answer: [{ type: String, required: true }] }],

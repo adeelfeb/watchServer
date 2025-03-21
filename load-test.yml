@@ -1,0 +1,10 @@
+config:
+  target: "http://localhost:8000" # Change this to your backend server URL
+  phases:
+    - duration: 60 # Run the test for 60 seconds
+      arrivalRate: 10 # Simulate 10 users per second
+
+scenarios:
+  - flow:
+      - get:
+          url: "/api/v1/users/videoDetails" # The API endpoint to test

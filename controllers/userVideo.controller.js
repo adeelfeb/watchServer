@@ -234,7 +234,7 @@ const addVideo = asyncHandler(async (req, res) => {
       if (process.env.NODE_ENV === "development") {
         await video.fetchVideoDetails();
         const durationInSeconds = parseInt(video.duration, 10);
-        if (durationInSeconds > 1200) { // Fixed: Changed from 200 to 1200 seconds (20 minutes)
+        if (durationInSeconds > 20) { // Fixed: Changed from 200 to 1200 seconds (20 minutes)
           return res.status(409).json(
             new ApiResponse(409, {}, "Video duration exceeds the predefined limit")
           );

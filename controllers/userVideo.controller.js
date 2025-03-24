@@ -58,6 +58,161 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
 
 
+// const addVideo = asyncHandler(async (req, res) => {
+//   const { videoUrl } = req.body;
+//   const userId = req.user._id;
+//   const apiUrl = config.externalEndpoints.url1;
+
+//   if (!videoUrl) {
+//     throw new ApiError(400, "Please provide a valid video URL");
+//   }
+
+//   // Check if video exists in DB
+//   let video = await Video.findOne({ videoUrl });
+
+//   if (!video) {
+//     // Video doesn't exist → Create a new entry
+//     video = new Video({ videoUrl });
+
+//     try {
+//       // Fetch video details & save
+//       if(process.env.NODE_ENV === "development"){
+//         await video.fetchVideoDetails();
+//         const durationInSeconds = parseInt(video.duration, 10);
+//         if (durationInSeconds > 200) { // 1200 seconds = 20 minutes
+//           // console.log("yes video is above limit", video.duration, "and is:", durationInSeconds)
+//           return res.status(409).json(new ApiResponse(409,{} ,"Video duration exceeds the predefined limit"));
+//         }
+//       }
+      
+//     } catch (error) {
+//       console.error("❌ Error fetching video details or duration exceeded:", error.message);
+
+//       if (error instanceof ApiError) {
+//         return res.status(error.statusCode).json(new ApiResponse(error.statusCode, null, error.message));
+//       }
+
+//       // Set default values if fetching fails
+//       video.thumbnailUrl = "https://havecamerawilltravel.com/wp-content/uploads/2020/01/youtube-thumbnails-size-header-1-800x450.png";
+//       video.title = "Title Unavailable";
+//       video.duration = "Unknown";
+//     }
+
+//     await video.save();
+//   } else if (video.requestSent) {
+//     // If request is already sent, return immediately
+//     const user = await User.findById(userId).populate("watchHistory");
+
+//     if (!user) throw new ApiError(404, "User not found");
+//     const alreadyInHistory = user.watchHistory.some(v => v.videoUrl === videoUrl);
+
+//     if (!alreadyInHistory) {
+//       user.watchHistory.push(video._id);
+//       await user.save();
+//     }
+//     return res.status(200).json(new ApiResponse(200, video, "Video already in database"));
+//   }
+
+//   // Fetch user & ensure they exist
+//   const user = await User.findById(userId).populate("watchHistory");
+//   if (!user) throw new ApiError(404, "User not found");
+
+//   // Check if video is in watch history
+//   const alreadyInHistory = user.watchHistory.some(v => v.videoUrl === videoUrl);
+
+//   if (!alreadyInHistory) {
+//     user.watchHistory.push(video._id);
+//     await user.save();
+//   }
+
+
+//   if (!video.requestSent && apiUrl) {
+//     try {
+//       // Determine the appropriate server URL based on environment
+//       const serverUrl = process.env.NODE_ENV === "development"
+//         ? config.ngrokUrl // Use ngrok in development
+//         : process.env.RENDER_EXTERNAL_URL; // Use hosting URL in production
+
+//       const response = await axios.post(apiUrl, {
+//         videoId: video._id,
+//         videoUrl: videoUrl,
+//         serverUrl: serverUrl
+//       });
+
+//       if (response.data && response.data.id) {
+//         // console.log("✅ Request successful.", response.data);
+//         const { id, videoInfo } = response.data; // Destructure id and videoDetail from the request body
+//         const { title, thumbnail, duration, video_url } = videoInfo; // Destructure video details
+      
+      
+//         // Validate required fields
+//         if (!id) {
+//           return res.status(400).json({ message: "Video ID is required" });
+//         }
+      
+//         // Helper function to convert duration (in seconds) to "mm:ss" format
+//         const formatDuration = (durationInSeconds) => {
+//           const minutes = Math.floor(durationInSeconds / 60);
+//           const seconds = durationInSeconds % 60;
+//           return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+//         };
+      
+//       try {
+//         let video = await Video.findById(id);
+    
+//         // If the video doesn't exist, create a new one
+//         if (!video) {
+//           video = new Video({
+//             _id: id, // Use the provided ID
+//             videoUrl: video_url || "https://www.youtube.com/watch?v=default", // Use the provided video URL or a default
+//             title: title || "Untitled Video", // Use the provided title or a default
+//             thumbnailUrl: thumbnail || "https://i.ytimg.com/vi/default/hqdefault.jpg", // Use the provided thumbnail or a default
+//             duration: formatDuration(duration || 0), // Format the duration
+//           });
+//         } else {
+//           // Update existing video details if provided
+//           video.title = title || video.title;
+//           video.thumbnailUrl = thumbnail || video.thumbnailUrl;
+//           video.duration = formatDuration(duration || video.duration); // Format the duration
+//           video.videoUrl = video_url || video.videoUrl;
+//         }
+    
+//         video.requestSent = true;
+//         // Save the video to the database
+//         await video.save();}
+//         catch(error){
+//           video.requestSent = false;
+//           await video.save();
+//           console.log("error during video save:", error)
+//         }
+        
+
+//         res.status(201).json(new ApiResponse(201, video, "Save successfully"));
+
+
+//       } else {
+//         console.warn("⚠️ External API did not return a valid response.");
+
+//         video.requestSent = false; // Allow retry
+//       }
+//     } catch (error) {
+//       if(error.status === 409){
+//         video.requestSent = false; // Allow retry
+//         return res.status(409).json( new ApiResponse(409, {}, "Video duration exceeds the predefined limit"))
+//       }
+//       else{
+//         video.requestSent = false; // Allow retry
+//         console.error("❌ Error sending request. API might be down:", error.message, "and status code :", error.statusCode, error.status);
+//       }
+//     }
+
+//   }
+
+  
+
+  
+// });
+
 const addVideo = asyncHandler(async (req, res) => {
   const { videoUrl } = req.body;
   const userId = req.user._id;
@@ -76,22 +231,22 @@ const addVideo = asyncHandler(async (req, res) => {
 
     try {
       // Fetch video details & save
-      await video.fetchVideoDetails();
-
-      
-      
-      const durationInSeconds = parseInt(video.duration, 10);
-      if (durationInSeconds > 200) { // 1200 seconds = 20 minutes
-
-        // console.log("yes video is above limit", video.duration, "and is:", durationInSeconds)
-        
-        return res.status(409).json(new ApiResponse(409,{} ,"Video duration exceeds the predefined limit"));
+      if (process.env.NODE_ENV === "development") {
+        await video.fetchVideoDetails();
+        const durationInSeconds = parseInt(video.duration, 10);
+        if (durationInSeconds > 1200) { // Fixed: Changed from 200 to 1200 seconds (20 minutes)
+          return res.status(409).json(
+            new ApiResponse(409, {}, "Video duration exceeds the predefined limit")
+          );
+        }
       }
     } catch (error) {
       console.error("❌ Error fetching video details or duration exceeded:", error.message);
 
       if (error instanceof ApiError) {
-        return res.status(error.statusCode).json(new ApiResponse(error.statusCode, null, error.message));
+        return res.status(error.statusCode).json(
+          new ApiResponse(error.statusCode, null, error.message)
+        );
       }
 
       // Set default values if fetching fails
@@ -112,7 +267,9 @@ const addVideo = asyncHandler(async (req, res) => {
       user.watchHistory.push(video._id);
       await user.save();
     }
-    return res.status(200).json(new ApiResponse(200, video, "Video already in database"));
+    return res.status(200).json(
+      new ApiResponse(200, video, "Video already in database")
+    );
   }
 
   // Fetch user & ensure they exist
@@ -127,13 +284,12 @@ const addVideo = asyncHandler(async (req, res) => {
     await user.save();
   }
 
-
   if (!video.requestSent && apiUrl) {
     try {
       // Determine the appropriate server URL based on environment
       const serverUrl = process.env.NODE_ENV === "development"
-        ? config.ngrokUrl // Use ngrok in development
-        : process.env.RENDER_EXTERNAL_URL; // Use hosting URL in production
+        ? config.ngrokUrl
+        : process.env.RENDER_EXTERNAL_URL;
 
       const response = await axios.post(apiUrl, {
         videoId: video._id,
@@ -142,80 +298,80 @@ const addVideo = asyncHandler(async (req, res) => {
       });
 
       if (response.data && response.data.id) {
-        // console.log("✅ Request successful.", response.data);
-        const { id, videoInfo } = response.data; // Destructure id and videoDetail from the request body
-        const { title, thumbnail, duration, video_url } = videoInfo; // Destructure video details
-      
-      
+        const { id, videoInfo } = response.data;
+        const { title, thumbnail, duration, video_url } = videoInfo;
+
         // Validate required fields
         if (!id) {
-          return res.status(400).json({ message: "Video ID is required" });
+          return res.status(400).json(
+            new ApiResponse(400, null, "Video ID is required")
+          );
         }
-      
-        // Helper function to convert duration (in seconds) to "mm:ss" format
+
+        // Helper function to format duration
         const formatDuration = (durationInSeconds) => {
           const minutes = Math.floor(durationInSeconds / 60);
           const seconds = durationInSeconds % 60;
           return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
         };
-      
-      try {
-        let video = await Video.findById(id);
-    
-        // If the video doesn't exist, create a new one
-        if (!video) {
-          video = new Video({
-            _id: id, // Use the provided ID
-            videoUrl: video_url || "https://www.youtube.com/watch?v=default", // Use the provided video URL or a default
-            title: title || "Untitled Video", // Use the provided title or a default
-            thumbnailUrl: thumbnail || "https://i.ytimg.com/vi/default/hqdefault.jpg", // Use the provided thumbnail or a default
-            duration: formatDuration(duration || 0), // Format the duration
-          });
-        } else {
-          // Update existing video details if provided
-          video.title = title || video.title;
-          video.thumbnailUrl = thumbnail || video.thumbnailUrl;
-          video.duration = formatDuration(duration || video.duration); // Format the duration
-          video.videoUrl = video_url || video.videoUrl;
-        }
-    
-        video.requestSent = true;
-        // Save the video to the database
-        await video.save();}
-        catch(error){
+
+        try {
+          // Find or update video
+          let videoToUpdate = await Video.findById(id);
+          
+          if (!videoToUpdate) {
+            videoToUpdate = new Video({
+              _id: id,
+              videoUrl: video_url || "https://www.youtube.com/watch?v=default",
+              title: title || "Untitled Video",
+              thumbnailUrl: thumbnail || "https://i.ytimg.com/vi/default/hqdefault.jpg",
+              duration: formatDuration(duration || 0),
+            });
+          } else {
+            videoToUpdate.title = title || videoToUpdate.title;
+            videoToUpdate.thumbnailUrl = thumbnail || videoToUpdate.thumbnailUrl;
+            videoToUpdate.duration = formatDuration(duration || videoToUpdate.duration);
+            videoToUpdate.videoUrl = video_url || videoToUpdate.videoUrl;
+          }
+
+          videoToUpdate.requestSent = true;
+          await videoToUpdate.save();
+
+          return res.status(201).json(
+            new ApiResponse(201, videoToUpdate, "Saved successfully")
+          );
+        } catch (error) {
           video.requestSent = false;
           await video.save();
-          console.log("error during video save:", error)
+          console.error("Error during video save:", error);
+          throw new ApiError(500, "Failed to save video details");
         }
-        
-
-        res.status(201).json(new ApiResponse(201, video, "Save successfully"));
-
-
       } else {
         console.warn("⚠️ External API did not return a valid response.");
-
-        video.requestSent = false; // Allow retry
+        video.requestSent = false;
+        await video.save();
+        throw new ApiError(502, "External API returned invalid response");
       }
     } catch (error) {
-      if(error.status === 409){
-        video.requestSent = false; // Allow retry
-        return res.status(409).json( new ApiResponse(409, {}, "Video duration exceeds the predefined limit"))
-      }
-      else{
-        video.requestSent = false; // Allow retry
-        console.error("❌ Error sending request. API might be down:", error.message, "and status code :", error.statusCode, error.status);
-      }
-    }
+      video.requestSent = false;
+      await video.save();
 
+      if (error.response?.status === 409) {
+        return res.status(409).json(
+          new ApiResponse(409, {}, "Video duration exceeds the predefined limit")
+        );
+      }
+
+      console.error("❌ Error sending request:", error.message);
+      throw new ApiError(503, "External service unavailable");
+    }
   }
 
-  
-
-  
+  // If we get here and video.requestSent is true but no API call was made
+  return res.status(200).json(
+    new ApiResponse(200, video, "Video processing initiated")
+  );
 });
-
-
 
 
 

@@ -46,10 +46,11 @@ const DeleteVideo = asyncHandler(async (req, res) => {
 
 
   const addVideoDetails = asyncHandler(async (req, res) => {
-    const { id, VideoDetail } = req.body; // Destructure id and videoDetail from the request body
-    const { title, thumbnail, duration, video_url } = VideoDetail; // Destructure video details
+    
+    const { id, videoDetail } = req.body; // Destructure id and videoDetail from the request body
+    const { title, thumbnail, duration, video_url } = videoDetail; // Destructure video details
   
-    console.log("The video details are:", req.body);
+    console.log("inside the add video detaisl:", videoDetail)
   
     // Validate required fields
     if (!id) {
@@ -106,7 +107,7 @@ const DeleteVideo = asyncHandler(async (req, res) => {
     const { id, video_details } = req.body; // Destructure id and videoDetail from the request body
     const { title, thumbnail, duration, video_url } = video_details; // Destructure video details
   
-    console.log("The video details are:", req.body);
+    console.log("The overlimit:", req.body);
   
     // Validate required fields
     if (!id) {
@@ -143,7 +144,7 @@ const DeleteVideo = asyncHandler(async (req, res) => {
   
       // Save the video to the database
       await video.save();
-      console.log("Response sending now from video OverLimit function to the Kaggle API")
+      // console.log("Response sending now from video OverLimit function to the Kaggle API")
   
       // Respond to the client
       res.status(200).json({
@@ -161,74 +162,132 @@ const DeleteVideo = asyncHandler(async (req, res) => {
   });
 
   
+  const addTranscript = asyncHandler(async (req, res) => {
+    const { id, type, chunks } = req.body;
 
-const addTranscript = asyncHandler(async (req, res) => {
-    const { id, english, original } = req.body;
-  console.log("inside the transcript:", req.body)
     try {
-        const video = await Video.findById(id);
+        // console.log("Received transcript update request:", req.body);
 
+        const video = await Video.findById(id);
         if (!video) {
             return res.status(404).json({ message: "Video not found" });
         }
 
+        // Ensure transcript object exists
         if (!video.transcript) {
-            video.transcript = {};
+            video.transcript = { english: [], original: [], text: "NA" };
         }
 
-        // Save the original transcript to the database
-        if (original && Array.isArray(original)) {
-            video.transcript.original = original
-                .filter(item => Array.isArray(item.timestamp) && item.text)
-                .map(item => ({
-                    timestamp: item.timestamp,
-                    text: item.text,
-                }));
+        if (!Array.isArray(chunks) || chunks.length === 0) {
+            return res.status(400).json({ message: "Invalid transcript data" });
         }
 
-        // Save the English transcript to the database
-        if (english && Array.isArray(english)) {
-            video.transcript.english = english
-                .filter(item => Array.isArray(item.timestamp) && item.text)
-                .map(item => ({
-                    timestamp: item.timestamp,
-                    text: item.text,
-                }));
+        // Validate and process transcript chunks
+        const validChunks = chunks
+            .filter(item => Array.isArray(item.timestamp) && typeof item.text === "string")
+            .map(item => ({ timestamp: item.timestamp, text: item.text }));
+
+        if (validChunks.length === 0) {
+            return res.status(400).json({ message: "No valid transcript data provided" });
+        }
+
+        // Update the appropriate transcript type
+        if (type === "english") {
+            video.transcript.english = validChunks;
+            video.transcript.text = validChunks.map(item => item.text).join(" ");
+        } else if (type === "original") {
+            video.transcript.original = validChunks;
+        } else {
+            return res.status(400).json({ message: "Invalid transcript type" });
         }
 
         await video.save();
-        // console.log("Transcript saved to database.");
+        res.status(200).json({ message: "Transcript updated successfully" });
 
-        // Respond to the client before running async tasks
-        res.status(200).json({
-            message: "Transcript updated successfully",
-        });
-
-        // Only vectorize the English transcript (skip the original transcript)
-        if (!video.transcript.english || video.transcript.english.length === 0) {
-            // console.log(`No English transcript for video ID ${id}, skipping vectorization.`);
-            return;
+        // Vectorization only for English transcript
+        if (type === "english" && video.transcript.text !== "NA") {
+            parseAndStoreInPinecone(video.transcript.text, id)
+                // .then(() => console.log(`Vectorized transcript for video ID ${id}`))
+                .catch(error => console.error(`Error vectorizing transcript:`, error.message));
         }
-
-        const fullTranscript = video.transcript.english.map(item => item.text).join(" ");
-
-        // Run vectorization in the background using only the English transcript
-        parseAndStoreInPinecone(fullTranscript, id)
-            .then(() => {
-                // console.log(`Transcript for video ID ${id} successfully vectorized and stored in Pinecone.`);
-            })
-            .catch((error) => {
-                console.error(`Error vectorizing transcript for video ID ${id}:`, error.message);
-            });
 
     } catch (error) {
         console.error("Error updating transcript:", error.message);
-
         if (!res.headersSent) {
             res.status(500).json({ message: "Failed to update transcript", error: error.message });
         }
     }
 });
+
+
+
+// const addTranscript = asyncHandler(async (req, res) => {
+//     const { id, english, original } = req.body;
+//   console.log("inside the transcript:", req.body)
+//     try {
+//         const video = await Video.findById(id);
+
+//         if (!video) {
+//             return res.status(404).json({ message: "Video not found" });
+//         }
+
+//         if (!video.transcript) {
+//             video.transcript = {};
+//         }
+
+//         // Save the original transcript to the database
+//         if (original && Array.isArray(original)) {
+//             video.transcript.original = original
+//                 .filter(item => Array.isArray(item.timestamp) && item.text)
+//                 .map(item => ({
+//                     timestamp: item.timestamp,
+//                     text: item.text,
+//                 }));
+//         }
+
+//         // Save the English transcript to the database
+//         if (english && Array.isArray(english)) {
+//             video.transcript.english = english
+//                 .filter(item => Array.isArray(item.timestamp) && item.text)
+//                 .map(item => ({
+//                     timestamp: item.timestamp,
+//                     text: item.text,
+//                 }));
+//         }
+
+//         await video.save();
+//         // console.log("Transcript saved to database.");
+
+//         // Respond to the client before running async tasks
+//         res.status(200).json({
+//             message: "Transcript updated successfully",
+//         });
+
+//         // Only vectorize the English transcript (skip the original transcript)
+//         if (!video.transcript.english || video.transcript.english.length === 0) {
+//             // console.log(`No English transcript for video ID ${id}, skipping vectorization.`);
+//             return;
+//         }
+
+//         const fullTranscript = video.transcript.english.map(item => item.text).join(" ");
+
+//         // Run vectorization in the background using only the English transcript
+//         parseAndStoreInPinecone(fullTranscript, id)
+//             .then(() => {
+//                 // console.log(`Transcript for video ID ${id} successfully vectorized and stored in Pinecone.`);
+//             })
+//             .catch((error) => {
+//                 console.error(`Error vectorizing transcript for video ID ${id}:`, error.message);
+//             });
+
+//     } catch (error) {
+//         console.error("Error updating transcript:", error.message);
+
+//         if (!res.headersSent) {
+//             res.status(500).json({ message: "Failed to update transcript", error: error.message });
+//         }
+//     }
+// });
 
 
 

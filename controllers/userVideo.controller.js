@@ -57,12 +57,11 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
 
 
+
 const addVideo = asyncHandler(async (req, res) => {
   const { videoUrl } = req.body;
   const userId = req.user._id;
   const apiUrl = config.externalEndpoints.url1;
-
-  // console.log("Adding video or checking...");
 
   if (!videoUrl) {
     throw new ApiError(400, "Please provide a valid video URL");
@@ -78,8 +77,23 @@ const addVideo = asyncHandler(async (req, res) => {
     try {
       // Fetch video details & save
       await video.fetchVideoDetails();
+
+      
+      
+      const durationInSeconds = parseInt(video.duration, 10);
+      if (durationInSeconds > 200) { // 1200 seconds = 20 minutes
+
+        // console.log("yes video is above limit", video.duration, "and is:", durationInSeconds)
+        
+        return res.status(409).json(new ApiResponse(409,{} ,"Video duration exceeds the predefined limit"));
+      }
     } catch (error) {
-      console.error("❌ Error fetching video details. Using default values:", error.message);
+      console.error("❌ Error fetching video details or duration exceeded:", error.message);
+
+      if (error instanceof ApiError) {
+        return res.status(error.statusCode).json(new ApiResponse(error.statusCode, null, error.message));
+      }
+
       // Set default values if fetching fails
       video.thumbnailUrl = "https://havecamerawilltravel.com/wp-content/uploads/2020/01/youtube-thumbnails-size-header-1-800x450.png";
       video.title = "Title Unavailable";
@@ -89,6 +103,15 @@ const addVideo = asyncHandler(async (req, res) => {
     await video.save();
   } else if (video.requestSent) {
     // If request is already sent, return immediately
+    const user = await User.findById(userId).populate("watchHistory");
+
+    if (!user) throw new ApiError(404, "User not found");
+    const alreadyInHistory = user.watchHistory.some(v => v.videoUrl === videoUrl);
+
+    if (!alreadyInHistory) {
+      user.watchHistory.push(video._id);
+      await user.save();
+    }
     return res.status(200).json(new ApiResponse(200, video, "Video already in database"));
   }
 
@@ -104,48 +127,95 @@ const addVideo = asyncHandler(async (req, res) => {
     await user.save();
   }
 
-  // ✅ Send response to frontend **immediately**
-  res.status(201).json(
-    new ApiResponse(
-      201,
-      video,
-      alreadyInHistory ? "Video already in watch history" : "Video added successfully and included in watch history"
-    )
-  );
 
-  // ✅ Use `setImmediate` to handle the external API request in the background
-  setImmediate(async () => {
-    if (!video.requestSent && apiUrl) {
-      try {
-        // console.log("🔄 Sending video data to external API...", apiUrl);
+  if (!video.requestSent && apiUrl) {
+    try {
+      // Determine the appropriate server URL based on environment
+      const serverUrl = process.env.NODE_ENV === "development"
+        ? config.ngrokUrl // Use ngrok in development
+        : process.env.RENDER_EXTERNAL_URL; // Use hosting URL in production
 
-        // Determine the appropriate server URL based on environment
-        const serverUrl = process.env.NODE_ENV === "development"
-          ? config.ngrokUrl // Use ngrok in development
-          : process.env.RENDER_EXTERNAL_URL; // Use hosting URL in production
-        // console.log("the URL is:", serverUrl)
-        const response = await axios.post(apiUrl, {
-          videoId: video._id,
-          videoUrl: videoUrl,
-          serverUrl: serverUrl 
-        });
+      const response = await axios.post(apiUrl, {
+        videoId: video._id,
+        videoUrl: videoUrl,
+        serverUrl: serverUrl
+      });
 
-        if (response.data) {
-          console.log("✅ Request successful. Marking as sent.");
-          video.requestSent = true;
-        } else {
-          console.warn("⚠️ External API did not return a valid response.");
-          video.requestSent = false; // Allow retry
+      if (response.data && response.data.id) {
+        // console.log("✅ Request successful.", response.data);
+        const { id, videoInfo } = response.data; // Destructure id and videoDetail from the request body
+        const { title, thumbnail, duration, video_url } = videoInfo; // Destructure video details
+      
+      
+        // Validate required fields
+        if (!id) {
+          return res.status(400).json({ message: "Video ID is required" });
         }
-      } catch (error) {
-        console.error("❌ Error sending request. API might be down:", error.message);
+      
+        // Helper function to convert duration (in seconds) to "mm:ss" format
+        const formatDuration = (durationInSeconds) => {
+          const minutes = Math.floor(durationInSeconds / 60);
+          const seconds = durationInSeconds % 60;
+          return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+        };
+      
+      try {
+        let video = await Video.findById(id);
+    
+        // If the video doesn't exist, create a new one
+        if (!video) {
+          video = new Video({
+            _id: id, // Use the provided ID
+            videoUrl: video_url || "https://www.youtube.com/watch?v=default", // Use the provided video URL or a default
+            title: title || "Untitled Video", // Use the provided title or a default
+            thumbnailUrl: thumbnail || "https://i.ytimg.com/vi/default/hqdefault.jpg", // Use the provided thumbnail or a default
+            duration: formatDuration(duration || 0), // Format the duration
+          });
+        } else {
+          // Update existing video details if provided
+          video.title = title || video.title;
+          video.thumbnailUrl = thumbnail || video.thumbnailUrl;
+          video.duration = formatDuration(duration || video.duration); // Format the duration
+          video.videoUrl = video_url || video.videoUrl;
+        }
+    
+        video.requestSent = true;
+        // Save the video to the database
+        await video.save();}
+        catch(error){
+          video.requestSent = false;
+          await video.save();
+          console.log("error during video save:", error)
+        }
+        
+
+        res.status(201).json(new ApiResponse(201, video, "Save successfully"));
+
+
+      } else {
+        console.warn("⚠️ External API did not return a valid response.");
+
         video.requestSent = false; // Allow retry
       }
-
-      await video.save();
+    } catch (error) {
+      if(error.status === 409){
+        video.requestSent = false; // Allow retry
+        return res.status(409).json( new ApiResponse(409, {}, "Video duration exceeds the predefined limit"))
+      }
+      else{
+        video.requestSent = false; // Allow retry
+        console.error("❌ Error sending request. API might be down:", error.message, "and status code :", error.statusCode, error.status);
+      }
     }
-  });
+
+  }
+
+  
+
+  
 });
+
+
 
 
 
@@ -257,34 +327,74 @@ const keyconcept = asyncHandler(async (req, res) => {
 
 
 
-const getQnas = asyncHandler(async (req, res) => {
-  try {
-      const videoId = req.query.videoId || req.body.videoId || req.params.videoId;
+// const getQnas = asyncHandler(async (req, res) => {
+//   try {
+//       const videoId = req.query.videoId || req.body.videoId || req.params.videoId;
+//       const userId = req.user._id
 
-      if (!videoId) {
-          return res.status(400).json({ message: "Video ID is required." });
-      }
+//       if (!videoId) {
+//           return res.status(400).json({ message: "Video ID is required." });
+//       }
 
-      // Find video
-      const video = await Video.findById(videoId);
-      if (!video) {
-          return res.status(404).json({ message: "Video not found." });
-      }
+//       // Find video
+//       const video = await Video.findById(videoId);
+//       if (!video) {
+//           return res.status(404).json({ message: "Video not found." });
+//       }
+
+      
       
 
-      // Return QnAs
-      return res.status(200).json({
-          message: "QnAs fetched successfully",
-          qnas: video.qnas || { shortQuestions: [], mcqs: [] },
-          videoId
+//       // Return QnAs
+//       return res.status(200).json({
+//           message: "QnAs fetched successfully",
+//           qnas: video.qnas || { shortQuestions: [], mcqs: [] },
+//           videoId
+//       });
+//   } catch (error) {
+//       console.error("Error fetching QnAs:", error.message);
+//       return res.status(500).json({ message: "Failed to fetch QnAs", error: error.message });
+//   }
+// });
+
+
+const getQnas = asyncHandler(async (req, res) => {
+  try {
+    const videoId = req.query.videoId || req.body.videoId || req.params.videoId;
+    const userId = req.user._id;
+
+    if (!videoId) {
+      return res.status(400).json({ message: "Video ID is required." });
+    }
+
+    // Check if the user has already taken the quiz for this video
+    const existingScore = await Score.findOne({ user: userId, video: videoId });
+
+    if (existingScore) {
+      return res.status(269).json({
+        message: "You have already taken this quiz.",
+        status: 269,
+        scoreIsEvaluated: existingScore.scoreIsEvaluated, // Optionally return the user's score
       });
+    }
+
+    // Find video
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ message: "Video not found." });
+    }
+
+    // Return QnAs
+    return res.status(200).json({
+      message: "QnAs fetched successfully",
+      qnas: video.qnas || { shortQuestions: [], mcqs: [] },
+      videoId,
+    });
   } catch (error) {
-      console.error("Error fetching QnAs:", error.message);
-      return res.status(500).json({ message: "Failed to fetch QnAs", error: error.message });
+    console.error("Error fetching QnAs:", error.message);
+    return res.status(500).json({ message: "Failed to fetch QnAs", error: error.message });
   }
 });
-
-
 
 
 
@@ -294,6 +404,8 @@ const storeAssessment = asyncHandler(async (req, res) => {
     const userId = req.user?._id || req.body.userId || req.params.userId || req.query.userId;
     const quiz = req.body.quiz;
 
+    // console.log("Inside store assessment:", quiz);
+
     if (!quiz) return res.status(400).json({ message: "Quiz data is required." });
     if (!videoId) return res.status(400).json({ message: "Video ID is required." });
     if (!userId) return res.status(400).json({ message: "User ID is required." });
@@ -301,19 +413,28 @@ const storeAssessment = asyncHandler(async (req, res) => {
     const video = await Video.findById(videoId);
     if (!video) return res.status(404).json({ message: "Video not found." });
 
+    // Initialize scores and arrays
     let mcqScore = 0;
-    const mcqAnswers = quiz.mcqAnswers?.map(mcq => {
-      const isCorrect = mcq.selectedOption === mcq.correctAnswer;
-      if (isCorrect) mcqScore += 1;
-      return {
-        question: mcq.question,
-        selectedOption: mcq.selectedOption,
-        correctOption: mcq.correctAnswer || "Not provided",
-        isCorrect,
-        score: isCorrect ? 1 : 0,
-      };
-    }) || [];
+    let mcqAnswers = []; // Default value for MCQs
+    let fillInTheBlanksScore = 0;
+    let fillInTheBlanks = []; // Default value for fill-in-the-blanks
 
+    // Process MCQs if provided
+    if (quiz.mcqAnswers && quiz.mcqAnswers.length > 0) {
+      mcqAnswers = quiz.mcqAnswers.map(mcq => {
+        const isCorrect = mcq.selectedOption === mcq.correctAnswer;
+        if (isCorrect) mcqScore += 1;
+        return {
+          question: mcq.question,
+          selectedOption: mcq.selectedOption,
+          correctOption: mcq.correctAnswer || "Not provided",
+          isCorrect,
+          score: isCorrect ? 1 : 0,
+        };
+      });
+    }
+
+    // Process short answers (always required)
     const shortAnswers = quiz.shortAnswers?.map(answer => ({
       question: answer.question,
       givenAnswer: answer.givenAnswer,
@@ -322,34 +443,34 @@ const storeAssessment = asyncHandler(async (req, res) => {
       scoreIsEvaluated: false, // Mark for later evaluation
     })) || [];
 
-    let fillInTheBlanksScore = 0;
-    const normalizeAnswer = (answer) => {
-      if (!answer) return ""; 
-      return String(answer)
-        .toLowerCase()
-        .trim()
-        .replace(/\s+/g, " ") // Replace multiple spaces with a single space
-        .replace(/[^\w\s]/g, ""); // Remove punctuation
-    };
-    
-    
-
-    const fillInTheBlanks = quiz.fillInTheBlanks?.map(blank => {
-      
-      const isCorrect = normalizeAnswer(blank.givenAnswer) === normalizeAnswer(blank.correctAnswer);
-      // console.log("the evaluation for ", blank.givenAnswer, " is:", isCorrect)
-      if (isCorrect) fillInTheBlanksScore += 1;
-      return {
-        sentence: blank.question,
-        givenAnswer: blank.givenAnswer,
-        correctAnswer: blank.correctAnswer || "Not provided",
-        isCorrect,
-        score: isCorrect ? 1 : 0,
+    // Process fill-in-the-blanks if provided
+    if (quiz.fillInTheBlanks && quiz.fillInTheBlanks.length > 0) {
+      const normalizeAnswer = (answer) => {
+        if (!answer) return "";
+        return String(answer)
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, " ") // Replace multiple spaces with a single space
+          .replace(/[^\w\s]/g, ""); // Remove punctuation
       };
-    }) || [];
 
+      fillInTheBlanks = quiz.fillInTheBlanks.map(blank => {
+        const isCorrect = normalizeAnswer(blank.givenAnswer) === normalizeAnswer(blank.correctAnswer);
+        if (isCorrect) fillInTheBlanksScore += 1;
+        return {
+          sentence: blank.question,
+          givenAnswer: blank.givenAnswer,
+          correctAnswer: blank.correctAnswer || "Not provided",
+          isCorrect,
+          score: isCorrect ? 1 : 0,
+        };
+      });
+    }
+
+    // Calculate total score
     const totalScore = mcqScore + fillInTheBlanksScore;
 
+    // Prepare score data
     const scoreData = {
       user: userId,
       video: videoId,
@@ -360,6 +481,7 @@ const storeAssessment = asyncHandler(async (req, res) => {
       scoreIsEvaluated: false,
     };
 
+    // Update or create the score record
     const updatedScore = await Score.findOneAndUpdate(
       { user: userId, video: videoId },
       scoreData,
@@ -376,6 +498,96 @@ const storeAssessment = asyncHandler(async (req, res) => {
     return res.status(500).json({ message: "Failed to store assessment", error: error.message });
   }
 });
+
+
+// const storeAssessment = asyncHandler(async (req, res) => {
+//   try {
+//     const videoId = req.body.videoId || req.params.videoId || req.query.videoId;
+//     const userId = req.user?._id || req.body.userId || req.params.userId || req.query.userId;
+//     const quiz = req.body.quiz;
+//     console.log("inside store assessment:", quiz)
+//     if (!quiz) return res.status(400).json({ message: "Quiz data is required." });
+//     if (!videoId) return res.status(400).json({ message: "Video ID is required." });
+//     if (!userId) return res.status(400).json({ message: "User ID is required." });
+
+//     const video = await Video.findById(videoId);
+//     if (!video) return res.status(404).json({ message: "Video not found." });
+
+//     let mcqScore = 0;
+//     const mcqAnswers = quiz.mcqAnswers?.map(mcq => {
+//       const isCorrect = mcq.selectedOption === mcq.correctAnswer;
+//       if (isCorrect) mcqScore += 1;
+//       return {
+//         question: mcq.question,
+//         selectedOption: mcq.selectedOption,
+//         correctOption: mcq.correctAnswer || "Not provided",
+//         isCorrect,
+//         score: isCorrect ? 1 : 0,
+//       };
+//     }) || [];
+
+//     const shortAnswers = quiz.shortAnswers?.map(answer => ({
+//       question: answer.question,
+//       givenAnswer: answer.givenAnswer,
+//       correctAnswer: answer.correctAnswer || "Not provided",
+//       score: 0,
+//       scoreIsEvaluated: false, // Mark for later evaluation
+//     })) || [];
+
+//     let fillInTheBlanksScore = 0;
+//     const normalizeAnswer = (answer) => {
+//       if (!answer) return ""; 
+//       return String(answer)
+//         .toLowerCase()
+//         .trim()
+//         .replace(/\s+/g, " ") // Replace multiple spaces with a single space
+//         .replace(/[^\w\s]/g, ""); // Remove punctuation
+//     };
+    
+    
+
+//     const fillInTheBlanks = quiz.fillInTheBlanks?.map(blank => {
+      
+//       const isCorrect = normalizeAnswer(blank.givenAnswer) === normalizeAnswer(blank.correctAnswer);
+//       // console.log("the evaluation for ", blank.givenAnswer, " is:", isCorrect)
+//       if (isCorrect) fillInTheBlanksScore += 1;
+//       return {
+//         sentence: blank.question,
+//         givenAnswer: blank.givenAnswer,
+//         correctAnswer: blank.correctAnswer || "Not provided",
+//         isCorrect,
+//         score: isCorrect ? 1 : 0,
+//       };
+//     }) || [];
+
+//     const totalScore = mcqScore + fillInTheBlanksScore;
+
+//     const scoreData = {
+//       user: userId,
+//       video: videoId,
+//       shortAnswers,
+//       mcqs: mcqAnswers,
+//       fillInTheBlanks,
+//       overallScore: totalScore,
+//       scoreIsEvaluated: false,
+//     };
+
+//     const updatedScore = await Score.findOneAndUpdate(
+//       { user: userId, video: videoId },
+//       scoreData,
+//       { upsert: true, new: true, runValidators: true }
+//     );
+
+//     return res.status(201).json({
+//       message: "Assessment stored/updated successfully.",
+//       score: updatedScore,
+//       status: 201,
+//     });
+//   } catch (error) {
+//     console.error("Error storing assessment:", error.message);
+//     return res.status(500).json({ message: "Failed to store assessment", error: error.message });
+//   }
+// });
 
 
 

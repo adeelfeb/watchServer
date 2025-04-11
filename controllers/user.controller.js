@@ -351,33 +351,6 @@ const loginWithTempToken = asyncHandler(async (req, res) => {
 
 
 
-
-// const logoutUser = asyncHandler(async (req, res) => {
-//     await User.findByIdAndUpdate(
-//         req.user._id,
-//         {
-//             $unset:{
-//                 refreshToken: 1// this can also be used to remove the refreshToken that keeps the user loggedIn
-//             }
-//         },
-//         // { $set: { refreshToken: undefined } },
-//         { new: true }
-//     );
-
-//     const options = {
-//         httpOnly: true,
-//         secure: true,
-//     };
-
-//     return res
-//         .status(200)
-//         .clearCookie("accessToken", options)
-//         .clearCookie("refreshToken", options)
-//         .json(new ApiResponse(200, {}, "User Logged Out"));
-// });
-
-
-
 const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(
         req.user._id,
@@ -390,15 +363,21 @@ const logoutUser = asyncHandler(async (req, res) => {
         secure: true,
         sameSite: 'None',
         path: '/',
-        domain: process.env.COOKIE_DOMAIN || 'yourdomain.com' // Explicit domain
+        domain: process.env.COOKIE_DOMAIN || 'localhost' // Match exactly what was set on login
     };
 
-    return res
-        .status(200)
-        .clearCookie("accessToken", options)
-        .clearCookie("refreshToken", options)
-        .json(new ApiResponse(200, {}, "User logged out"));
+    // Clear both tokens
+    res
+      .clearCookie("accessToken", options)
+      .clearCookie("refreshToken", options)
+      // Add these headers to prevent caching
+      .set('Cache-Control', 'no-store, no-cache, must-revalidate')
+      .set('Pragma', 'no-cache')
+      .set('Expires', '0')
+      .status(200)
+      .json(new ApiResponse(200, {}, "User logged out"));
 });
+
 
 
 

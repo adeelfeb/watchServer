@@ -9,10 +9,7 @@ import axios from "axios"; // For external API requests
 import config from "../src/conf.js";
 // import admin from "firebase-admin";
 import {admin} from '../utils/firebase.js'
-
-
-
-
+import mongoose from "mongoose";
 
 const registerUser = asyncHandler(async (req, res) => {
     const { fullname, email, password, username, firebaseUid } = req.body;
@@ -73,6 +70,7 @@ const registerUser = asyncHandler(async (req, res) => {
     return res.status(201).json(new ApiResponse(201, { accessToken, refreshToken, temporaryToken }, "User registered and logged in successfully"));
 });
 
+  
 
 
 
@@ -151,141 +149,54 @@ const googleAuth = asyncHandler(async (req, res) => {
 
 
 
-// const loginUser = asyncHandler(async (req, res)=>{
-//   const { email, password, username } = req.body;
-//   // console.log(email,password, username)
+const loginUser = asyncHandler(async (req, res)=>{
+  const { email, password, username } = req.body;
+  // console.log(email,password, username)
   
-//   if(!(username || email)){
-//       throw new ApiError(400, "User or email required")
-//   }
+  if(!(username || email)){
+      throw new ApiError(400, "User or email required")
+  }
 
-//   const user = await User.findOne({
-//       $or: [{username}, {email}]
-//   })
+  const user = await User.findOne({
+      $or: [{username}, {email}]
+  })
 
-//   if(!user){
-//       throw new ApiError(404, "User does not exist")
-//   }
+  if(!user){
+      throw new ApiError(404, "User does not exist")
+  }
 
-//   const isPasswordValid = await user.isPasswordCorrect(password)
+  const isPasswordValid = await user.isPasswordCorrect(password)
 
-//   if(!isPasswordValid){
-//       throw new ApiError(401, "Invalide user Credentials #Password")
-//   }
+  if(!isPasswordValid){
+      throw new ApiError(401, "Invalide user Credentials #Password")
+  }
 
 
-//   const {accessToken, refreshToken} = await generateAccessAndRefreshToken(user._id)
+  const {accessToken, refreshToken} = await generateAccessAndRefreshToken(user._id)
 
-//   const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+  const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
-//   const options = {
-//       httpOnly: true,
-//       secure: true, // Required for HTTPS
-//       sameSite: 'none', // Required for cross-origin cookies
-//   };
+  const options = {
+      httpOnly: true,
+      secure: true, // Required for HTTPS
+      sameSite: 'none', // Required for cross-origin cookies
+  };
   
 
-//   return res.status(200)
-//   .cookie("accessToken", accessToken, options)
-//   .cookie("refreshToken", refreshToken, options)
-//   .json(
-//       new ApiResponse(200,
-//           {
-//               accessToken, refreshToken
-//           },
-//           "User LoggedIn successfully"
-//       )
-//   )
+  return res.status(200)
+  .cookie("accessToken", accessToken, options)
+  .cookie("refreshToken", refreshToken, options)
+  .json(
+      new ApiResponse(200,
+          {
+              accessToken, refreshToken
+          },
+          "User LoggedIn successfully"
+      )
+  )
 
-// })
+})
 
-const loginUser = asyncHandler(async (req, res) => {
-    const { email, password, username } = req.body;
-
-    // 1. Validate Input
-    if (!(username || email)) {
-        // Still appropriate to throw for bad request input
-        throw new ApiError(400, "Username or email is required");
-    }
-
-    // 2. Find User
-    const user = await User.findOne({
-        $or: [{ username: username?.toLowerCase() }, { email: email?.toLowerCase() }]
-    }).select("+password"); // Select password only if your `isPasswordCorrect` method needs it passed externally
-
-    if (!user) {
-        // Use a more specific error for user not found, but still throw
-        throw new ApiError(404, "User not found with the provided credentials.");
-    }
-
-    // 3. **** Check if User is Active ****
-    if (!user.isActive) {
-        // --- MODIFICATION HERE ---
-        // Instead of throwing, return a specific 403 response
-        return res.status(403).json(
-            new ApiResponse(
-                403, // Status code
-                null, // No user data or tokens should be sent
-                "Your account has been deactivated. Please contact support." // Clear message
-                // The ApiResponse constructor should handle setting success: false based on status code > 299
-            )
-        );
-        // --- END MODIFICATION ---
-    }
-
-    // 4. Validate Password
-    if (!user.password && user.authProvider !== 'local') {
-         throw new ApiError(401, "Login with your social account or set a password first.");
-    }
-    if (!user.password) {
-         throw new ApiError(401, "Password not set for this account.");
-    }
-
-    const isPasswordValid = await user.isPasswordCorrect(password);
-
-    if (!isPasswordValid) {
-        // Still appropriate to throw for invalid credentials
-        throw new ApiError(401, "Invalid username/email or password.");
-    }
-
-    // 5. Generate Tokens
-    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
-
-    // 6. Update Refresh Token in DB
-    // Refetch to avoid saving potentially selected password field
-    const userToSave = await User.findById(user._id);
-    if (!userToSave) throw new ApiError(500, "Failed to retrieve user for saving token.");
-    userToSave.refreshToken = refreshToken;
-    await userToSave.save({ validateBeforeSave: false });
-
-    // 7. Prepare Response Data
-    const loggedInUserDetails = await User.findById(user._id).select("-password -refreshToken");
-
-    // 8. Set Cookies
-    const options = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Strict', // Or 'Lax' or 'None'
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    };
-
-    // 9. Send Success Response
-    return res
-        .status(200)
-        .cookie("accessToken", accessToken, options)
-        .cookie("refreshToken", refreshToken, options)
-        .json(
-            new ApiResponse(
-                200,
-                {
-                    user: loggedInUserDetails,
-                    accessToken,
-                    // refreshToken // Not in body
-                },
-                "User logged in successfully"
-            )
-        );
-});
 
 
 
@@ -678,12 +589,288 @@ const updateUserCoverImage = asyncHandler(async(req, res)=>{
     json(new ApiResponse(200, user, "Cover Image Updated Successfully"))
 })
 
+const getAllUsers = asyncHandler(async (req, res) => {
+    // Optional: Add pagination later if the user list becomes very large
+    // const page = parseInt(req.query.page, 10) || 1;
+    // const limit = parseInt(req.query.limit, 10) || 50;
+    // const skip = (page - 1) * limit;
+
+    // Projection: Select fields needed for the admin user list
+    const fieldsToSelect = 'fullname username email avatar isActive isAdmin createdAt authProvider';
+
+    const users = await User.find({}) // Fetch all users for now
+        .select(fieldsToSelect)
+        // .skip(skip) // Add if paginating
+        // .limit(limit) // Add if paginating
+        .sort({ createdAt: -1 }) // Show newest users first
+        .lean(); // Use lean for performance
+
+    // Optional: Add total count if paginating
+    // const totalUsers = await User.countDocuments({});
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, users, "Users fetched successfully"));
+});
+
+/**
+ * @description Toggle the isActive status of a user
+ * @route PATCH /api/v1/admin/users/:userId/status
+ * @access Private (Admin)
+ */
+const toggleUserStatus = asyncHandler(async (req, res) => {
+    const { userId } = req.params;
+    const adminUserId = req.user?._id; // Get ID of the admin performing the action
+
+    if (!mongoose.isValidObjectId(userId)) {
+        throw new ApiError(400, "Invalid User ID format");
+    }
+
+    // Prevent admin from deactivating themselves
+    if (adminUserId && adminUserId.toString() === userId) {
+        throw new ApiError(403, "Admins cannot change their own active status.");
+    }
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    // Optional: Prevent deactivating other admins (adjust logic if needed)
+    // if (user.isAdmin) {
+    //    throw new ApiError(403, "Cannot deactivate another admin account.");
+    // }
+
+    // Toggle the status
+    user.isActive = !user.isActive;
+
+    // Use save with validation disabled for simple toggle, or rely on schema defaults
+    await user.save({ validateBeforeSave: false });
+
+    // Return only necessary updated info
+    const updatedUserInfo = {
+        _id: user._id,
+        isActive: user.isActive,
+    };
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, updatedUserInfo, `User status successfully updated to ${user.isActive ? 'Active' : 'Inactive'}.`));
+});
+
+/**
+ * @description Delete a user account
+ * @route DELETE /api/v1/admin/users/:userId
+ * @access Private (Admin)
+ */
+const deleteUserAccount = asyncHandler(async (req, res) => {
+    const { userId } = req.params;
+    const adminUserId = req.user?._id;
+
+    if (!mongoose.isValidObjectId(userId)) {
+        throw new ApiError(400, "Invalid User ID format");
+    }
+
+    // Prevent admin from deleting themselves
+    if (adminUserId && adminUserId.toString() === userId) {
+        throw new ApiError(403, "Admins cannot delete their own account.");
+    }
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    // Prevent deleting other admins
+    if (user.isAdmin) {
+        throw new ApiError(403, "Cannot delete an admin account.");
+    }
+
+    // Perform the deletion
+    const deletionResult = await User.findByIdAndDelete(userId);
+
+    if (!deletionResult) {
+        // Should not happen if findById found the user, but good practice
+        throw new ApiError(500, "Failed to delete user after finding them.");
+    }
+
+    // TODO: Consider related data cleanup (e.g., videos owned by user if applicable, comments, etc.)
+    // This might involve cascading deletes or setting fields to null, depending on your schema design.
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, { deletedUserId: userId }, "User account deleted successfully."));
+});
+
+
+const createUser = asyncHandler(async(req, res)=>{
+    return
+})
+
+
+const getDashboardStats = asyncHandler(async (req, res) => {
+
+
+    // 1. Count Total Users
+    const totalUserCount = await User.countDocuments();
+
+    // 2. Count Active Users (based on the new `isActive` field)
+    const activeUserCount = await User.countDocuments({ isActive: true });
+
+    // 3. Count Total Videos
+    const totalVideoCount = await Video.countDocuments();
+
+    // Structure the response data
+    const stats = {
+        totalUsers: totalUserCount,
+        activeUsers: activeUserCount,
+        totalVideos: totalVideoCount,
+    };
+
+    // Send the response
+    return res
+        .status(200)
+        .json(new ApiResponse(200, stats, "Dashboard stats fetched successfully"));
+});
 
 
 
 
 
-export { registerUser,
+
+const makeAdmin = asyncHandler(async (req, res) => {
+    const { userId } = req.body;
+
+    // 1. Validate input
+    if (!userId) {
+        throw new ApiError(400, "User ID is required");
+    }
+
+    // // 2. Check if requesting user is an admin (or super admin)
+    // if (!req.user.isAdmin) {
+    //     throw new ApiError(403, "Unauthorized: Only admins can perform this action");
+    // }
+
+    // 3. Find the user to be made admin
+    const user = await User.findById(userId);
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    // 4. Check if user is already admin
+    if (user.isAdmin) {
+        throw new ApiError(400, "User is already an admin");
+    }
+
+    // 5. Update user to admin
+    user.isAdmin = true;
+    await user.save({ validateBeforeSave: false });
+
+    // 6. Invalidate any existing tokens (optional but recommended)
+    user.refreshToken = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    // 7. Return success response
+    return res.status(200).json(
+        new ApiResponse(200, { user }, "User successfully promoted to admin")
+    );
+});
+
+
+const getAllVideos = asyncHandler(async (req, res) => {
+    // --- Pagination Parameters ---
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 20; // Adjust default limit as needed
+    const skip = (page - 1) * limit;
+
+    // --- Sorting Parameters ---
+    const sortBy = req.query.sortBy || 'createdAt'; // Default sort by creation date
+    const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1; // Default to descending (newest first)
+    const sortOptions = { [sortBy]: sortOrder };
+
+    // --- Filtering (Optional - Example: filter by title search) ---
+    // const searchQuery = req.query.query || '';
+    const filterCriteria = {};
+    // if (searchQuery) {
+    //     filterCriteria.title = { $regex: searchQuery, $options: 'i' }; // Case-insensitive search
+    // }
+    // Add more filters based on status etc. if needed
+
+    // --- Projection (Select only necessary fields for the list) ---
+    // Adjust this list based on what your VideoList component *actually* displays
+    const fieldsToSelect =
+        'title thumbnailUrl videoUrl duration createdAt transcript.english transcript.original summary.english summary.original keyconcept.primary keyconcept.secondary qnas.mcqs qnas.shortQuestions score requestSent';
+
+
+    try {
+        // --- Perform Paginated Query ---
+        const videos = await Video.find(filterCriteria)
+            .sort(sortOptions)
+            .skip(skip)
+            .limit(limit)
+            .select(fieldsToSelect) // Apply projection
+            .lean(); // Use .lean() for performance if you don't need Mongoose documents
+
+        // --- Get Total Count for Pagination ---
+        // Important: Count documents matching the *same filter* used for the data query
+        const totalVideosCount = await Video.countDocuments(filterCriteria);
+
+        // --- Calculate Pagination Metadata ---
+        const totalPages = Math.ceil(totalVideosCount / limit);
+        const hasNextPage = page < totalPages;
+        const hasPrevPage = page > 1;
+
+        // --- Prepare Response ---
+        const paginationData = {
+            docs: videos, // The actual video data for the page
+            totalDocs: totalVideosCount,
+            limit: limit,
+            page: page,
+            totalPages: totalPages,
+            hasNextPage: hasNextPage,
+            hasPrevPage: hasPrevPage,
+            nextPage: hasNextPage ? page + 1 : null,
+            prevPage: hasPrevPage ? page - 1 : null,
+        };
+
+        // Check if the requested page is valid
+        if (page > totalPages && totalVideosCount > 0) {
+             throw new ApiError(404, "Page not found");
+            // Or alternatively, return the last page:
+            // return res.redirect(`/your-endpoint?page=${totalPages}&limit=${limit}...`);
+        }
+
+
+        // Return the paginated data
+        return res.status(200).json(
+            new ApiResponse(
+                200,
+                paginationData,
+                "Videos fetched successfully"
+            )
+        );
+
+    } catch (error) {
+        console.error("Error fetching videos:", error);
+        // Handle specific errors like CastError if needed
+        if (error instanceof ApiError) {
+             throw error; // Re-throw ApiError
+        }
+        throw new ApiError(500, "Failed to fetch videos", error.message); // Throw generic error
+    }
+});
+
+export { 
+    createUser,
+    toggleUserStatus,
+    deleteUserAccount,
+    getAllVideos,
+    getDashboardStats,
+    makeAdmin,
+    getAllUsers,
+    registerUser,
     loginUser,
     logoutUser,
     refreshAccessToken,
@@ -698,3 +885,5 @@ export { registerUser,
     checkPassword,
     forgetPassword
  };
+
+

@@ -15,6 +15,10 @@ const userSchema = new Schema(
       trim: true,
       index: true,
     },
+    isAdmin: {
+      type: Boolean,
+      default: false,
+    },
     email: {
       type: String,
       required: true,
@@ -73,6 +77,11 @@ const userSchema = new Schema(
       enum: ["local", "google"],
       default: "local",
     },
+    isActive: {
+      type: Boolean,
+      default: true, // Users are active by default
+      index: true // Index for faster querying of active users
+  }
   },
   { timestamps: true }
 );
@@ -103,6 +112,8 @@ userSchema.methods.generateAccessToken = function () {
       username: this.username,
       email: this.email,
       fullname: this.fullname,
+      isAdmin: this.isAdmin, // Include admin status in token
+      isActive: this.isActive 
     },
     process.env.ACCESS_TOKEN_SECRET,
     {
@@ -110,6 +121,7 @@ userSchema.methods.generateAccessToken = function () {
     }
   );
 };
+
 
 // Method to generate a refresh token
 userSchema.methods.generateRefreshToken = function () {

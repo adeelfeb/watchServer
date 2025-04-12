@@ -189,10 +189,12 @@ app.post("/api/v1/allow-origin", (req, res) => {
 // Import routes
 import userRouter from "../router/user.routes.js";
 import videoRouter from "../router/video.routes.js";
+import adminRouter from '../router/admin.routes.js';
+
 
 // Declare routes
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/videos", videoRouter);
-
+app.use('/api/v1/admin', adminRouter);
 // Export the app
 export { app };

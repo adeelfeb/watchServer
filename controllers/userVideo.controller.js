@@ -6,6 +6,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import axios from 'axios'; 
 import config from "../src/conf.js";
 import { Score } from "../models/score.model.js";
+import { ActivityLog } from "../models/activityLog.model.js";
 import mongoose from "mongoose";
 
 
@@ -54,6 +55,9 @@ const getAllVideos = asyncHandler(async (req, res) => {
     res.status(500).json({ message: "Failed to fetch videos", error: error.message });
   }
 });
+
+
+
 
 
 
@@ -268,31 +272,6 @@ const getTranscript = asyncHandler(async (req, res) => {
 
 
 
-// const getTranscript = asyncHandler(async (req, res) => {
-//   const videoId = req.query.videoId || req.body.videoId || req.params;
-//   // console.log("Inside the getTranscript :", videoId);
-  
-//     if (!videoId) {
-//       throw new ApiError(400, "Video ID is required.");
-//     }
-  
-//     // Find the video by its ID
-//     const video = await Video.findById(videoId);
-  
-//     if (!video) {
-//       throw new ApiError(404, "Video not found.");
-//     }
-  
-//     // Extract the transcript (default to English for this example)
-//     const transcript = video.transcript || {};
-  
-//     return res.status(200).json(
-//       new ApiResponse(200, { transcript: transcript }, "Transcript fetched successfully")
-//     );
-//   });
-
-
-
 const getVideoDetails = asyncHandler(async (req, res) => {
   const videoId = req.query.videoId || req.body.videoId || req.params;
   // console.log("Inside the getTranscript :", videoId);
@@ -371,39 +350,6 @@ const keyconcept = asyncHandler(async (req, res) => {
 
 
 
-
-
-
-
-// const getQnas = asyncHandler(async (req, res) => {
-//   try {
-//       const videoId = req.query.videoId || req.body.videoId || req.params.videoId;
-//       const userId = req.user._id
-
-//       if (!videoId) {
-//           return res.status(400).json({ message: "Video ID is required." });
-//       }
-
-//       // Find video
-//       const video = await Video.findById(videoId);
-//       if (!video) {
-//           return res.status(404).json({ message: "Video not found." });
-//       }
-
-      
-      
-
-//       // Return QnAs
-//       return res.status(200).json({
-//           message: "QnAs fetched successfully",
-//           qnas: video.qnas || { shortQuestions: [], mcqs: [] },
-//           videoId
-//       });
-//   } catch (error) {
-//       console.error("Error fetching QnAs:", error.message);
-//       return res.status(500).json({ message: "Failed to fetch QnAs", error: error.message });
-//   }
-// });
 
 
 const getQnas = asyncHandler(async (req, res) => {
@@ -547,95 +493,6 @@ const storeAssessment = asyncHandler(async (req, res) => {
   }
 });
 
-
-// const storeAssessment = asyncHandler(async (req, res) => {
-//   try {
-//     const videoId = req.body.videoId || req.params.videoId || req.query.videoId;
-//     const userId = req.user?._id || req.body.userId || req.params.userId || req.query.userId;
-//     const quiz = req.body.quiz;
-//     console.log("inside store assessment:", quiz)
-//     if (!quiz) return res.status(400).json({ message: "Quiz data is required." });
-//     if (!videoId) return res.status(400).json({ message: "Video ID is required." });
-//     if (!userId) return res.status(400).json({ message: "User ID is required." });
-
-//     const video = await Video.findById(videoId);
-//     if (!video) return res.status(404).json({ message: "Video not found." });
-
-//     let mcqScore = 0;
-//     const mcqAnswers = quiz.mcqAnswers?.map(mcq => {
-//       const isCorrect = mcq.selectedOption === mcq.correctAnswer;
-//       if (isCorrect) mcqScore += 1;
-//       return {
-//         question: mcq.question,
-//         selectedOption: mcq.selectedOption,
-//         correctOption: mcq.correctAnswer || "Not provided",
-//         isCorrect,
-//         score: isCorrect ? 1 : 0,
-//       };
-//     }) || [];
-
-//     const shortAnswers = quiz.shortAnswers?.map(answer => ({
-//       question: answer.question,
-//       givenAnswer: answer.givenAnswer,
-//       correctAnswer: answer.correctAnswer || "Not provided",
-//       score: 0,
-//       scoreIsEvaluated: false, // Mark for later evaluation
-//     })) || [];
-
-//     let fillInTheBlanksScore = 0;
-//     const normalizeAnswer = (answer) => {
-//       if (!answer) return ""; 
-//       return String(answer)
-//         .toLowerCase()
-//         .trim()
-//         .replace(/\s+/g, " ") // Replace multiple spaces with a single space
-//         .replace(/[^\w\s]/g, ""); // Remove punctuation
-//     };
-    
-    
-
-//     const fillInTheBlanks = quiz.fillInTheBlanks?.map(blank => {
-      
-//       const isCorrect = normalizeAnswer(blank.givenAnswer) === normalizeAnswer(blank.correctAnswer);
-//       // console.log("the evaluation for ", blank.givenAnswer, " is:", isCorrect)
-//       if (isCorrect) fillInTheBlanksScore += 1;
-//       return {
-//         sentence: blank.question,
-//         givenAnswer: blank.givenAnswer,
-//         correctAnswer: blank.correctAnswer || "Not provided",
-//         isCorrect,
-//         score: isCorrect ? 1 : 0,
-//       };
-//     }) || [];
-
-//     const totalScore = mcqScore + fillInTheBlanksScore;
-
-//     const scoreData = {
-//       user: userId,
-//       video: videoId,
-//       shortAnswers,
-//       mcqs: mcqAnswers,
-//       fillInTheBlanks,
-//       overallScore: totalScore,
-//       scoreIsEvaluated: false,
-//     };
-
-//     const updatedScore = await Score.findOneAndUpdate(
-//       { user: userId, video: videoId },
-//       scoreData,
-//       { upsert: true, new: true, runValidators: true }
-//     );
-
-//     return res.status(201).json({
-//       message: "Assessment stored/updated successfully.",
-//       score: updatedScore,
-//       status: 201,
-//     });
-//   } catch (error) {
-//     console.error("Error storing assessment:", error.message);
-//     return res.status(500).json({ message: "Failed to store assessment", error: error.message });
-//   }
-// });
 
 
 

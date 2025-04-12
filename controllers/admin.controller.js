@@ -862,8 +862,97 @@ const getAllVideos = asyncHandler(async (req, res) => {
     }
 });
 
+const deleteVideo = asyncHandler(async (req, res) => {
+    // Get videoId from URL parameters
+    const { videoId } = req.params;
+
+    // Validate if videoId is a valid MongoDB ObjectId
+    if (!mongoose.isValidObjectId(videoId)) {
+        throw new ApiError(400, "Invalid Video ID in single video, ID format");
+    }
+
+    // Find the video by ID
+    const video = await Video.findById(videoId);
+
+    if (!video) {
+        throw new ApiError(404, "Video not found");
+    }
+
+    // --- Optional: Add logic to delete associated files (e.g., from Cloudinary) here ---
+    // await deleteFromCloudinary(video.videoFile.public_id, 'video');
+    // await deleteFromCloudinary(video.thumbnail.public_id, 'image');
+    // -------------------------------------------------------------------------------
+
+    // Delete the video document from the database
+    const deleteResult = await Video.findByIdAndDelete(videoId);
+
+    if (!deleteResult) {
+         // Should not happen if findById found it, but good practice
+         throw new ApiError(500, "Failed to delete video after finding it");
+    }
+
+    // Respond to the client
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            { deletedVideoId: videoId }, // Send back the ID of the deleted video
+            "Video deleted successfully"
+        )
+    );
+});
+
+
+
+const deleteBulkVideos = asyncHandler(async (req, res) => {
+    // Get the array of videoIds from the request body
+    // console.log("Backend received videoIds for bulk delete:", req.body);
+    const { videoIds } = req.body;
+
+    // --- ADD THIS LOG ---
+    // console.log("Backend received videoIds for bulk delete:", videoIds);
+    // --------------------
+
+    
+
+    // Validate input: check if videoIds is a non-empty array
+    if (!Array.isArray(videoIds) || videoIds.length === 0) {
+        throw new ApiError(400, "Request body must contain a non-empty array 'videoIds'");
+    }
+
+    // Validate each ID in the array (optional but recommended)
+    const invalidIds = videoIds.filter(id => !mongoose.isValidObjectId(id));
+    if (invalidIds.length > 0) {
+        throw new ApiError(400, `Invalid Video ID format found: ${invalidIds.join(', ')}`);
+    }
+
+
+    // Perform the bulk delete operation
+    const deleteResult = await Video.deleteMany({
+        _id: { $in: videoIds } // Use the $in operator to match documents whose _id is in the videoIds array
+    });
+
+    // deleteResult contains { acknowledged: true, deletedCount: X }
+
+    if (deleteResult.deletedCount === 0) {
+        console.log(`Bulk delete attempt: No videos found for IDs: ${videoIds.join(', ')}`);
+        // You might choose to send a 404 if you expect at least one match, or 200 if finding none is acceptable.
+        // Let's return 200 with a count of 0.
+    }
+
+    // Respond to the client
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            { deletedCount: deleteResult.deletedCount }, // Return the number of videos deleted
+            `${deleteResult.deletedCount} video(s) processed for deletion successfully.`
+        )
+    );
+});
+
 export { 
     createUser,
+    deleteBulkVideos,
+    deleteVideo,
     toggleUserStatus,
     deleteUserAccount,
     getAllVideos,

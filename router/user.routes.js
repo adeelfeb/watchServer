@@ -2,7 +2,7 @@ import { Router } from "express";
 import { registerUser, loginWithTempToken,checkPassword, forgetPassword, googleAuth , loginUser, logoutUser,uploadVideo,  refreshAccessToken, changeCurrentPassword, getCurrentUser, updateAccountDetails, updateUserAvatar, updateUserCoverImage } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { getWatchHistory, addVideo, getVideoDetails, getTranscript, getSummary, getQnas, keyconcept, storeAssessment, deleteHistory, getScore, DeleteVideo, getAllVideos, DeleteVideos } from "../controllers/userVideo.controller.js";
+import { getWatchHistory, addVideo, getVideoDetails, getTranscript, getSummary, getQnas, keyconcept, storeAssessment, deleteHistory, getScore } from "../controllers/userVideo.controller.js";
 import { addFileData, getFileHistory, getVectorData } from "../controllers/userFileData.controller.js";
 import { insertChat, getChatHistory } from "../controllers/userChat.controller.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
@@ -100,10 +100,8 @@ router.route("/keyconcept").get(verifyJWT, keyconcept);
 //assesment route submission
 router.route("/qnas").post(verifyJWT, storeAssessment);  
 router.route("/score").get(verifyJWT, getScore);  
-router.route("/delete-videos").delete(verifyJWT, DeleteVideos);  
-router.route("/delete-video").delete(verifyJWT, DeleteVideo);  
 
-router.route("/getAllVideo").get(verifyJWT, getAllVideos);
+
 
 
 

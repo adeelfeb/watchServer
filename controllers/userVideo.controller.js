@@ -58,168 +58,244 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
 
 
-
-
-
 const addVideo = asyncHandler(async (req, res) => {
   const { videoUrl } = req.body;
-  const userId = req.user._id;
-  const apiUrl = config.externalEndpoints.url1;
+  const userId = req.user?._id; // Safely access user ID from authenticated request
+  const apiUrl = config.externalEndpoints?.url1; // Safely access API URL
 
-  if (!videoUrl) {
-    throw new ApiError(400, "Please provide a valid video URL");
+  // --- Basic Input Validation ---
+  if (!userId) {
+    // This case should ideally be prevented by the auth middleware, but good to double-check
+    console.error("❌ AddVideo Error: User ID not found in request. Auth middleware issue?");
+    return res.status(401).json(new ApiResponse(401, null, "User authentication failed"));
   }
 
-  // Check if video exists in DB
-  let video = await Video.findOne({ videoUrl });
+  if (!videoUrl || typeof videoUrl !== 'string' || !videoUrl.trim()) {
+    console.warn("⚠️ AddVideo Warning: Invalid or missing video URL provided.");
+    // Respond directly with 400 Bad Request
+    return res.status(400).json(new ApiResponse(400, null, "Please provide a valid video URL"));
+  }
+
+  // --- Video Existence Check and Initial Handling ---
+  let video;
+  try {
+    video = await Video.findOne({ videoUrl });
+  } catch (dbError) {
+    console.error("❌ AddVideo DB Error: Failed searching for video.", dbError);
+    return res.status(500).json(new ApiResponse(500, null, "Database error checking for video"));
+  }
 
   if (!video) {
-    // Video doesn't exist → Create a new entry
+    // --- Video doesn't exist: Create and Fetch Details ---
     video = new Video({ videoUrl });
 
     try {
-      // Fetch video details & save
+      // Fetch video details only in development for duration check (optional)
       if (process.env.NODE_ENV === "development") {
-        await video.fetchVideoDetails();
+        await video.fetchVideoDetails(); // Assume this method might throw specific errors
         const durationInSeconds = parseInt(video.duration, 10);
-        if (durationInSeconds > 20) { // Fixed: Changed from 200 to 1200 seconds (20 minutes)
+        const MAX_DURATION = 1200; // 20 minutes in seconds
+
+        if (!isNaN(durationInSeconds) && durationInSeconds > MAX_DURATION) {
+          console.warn(`⚠️ AddVideo Warning: Video duration (${durationInSeconds}s) exceeds limit (${MAX_DURATION}s).`);
+          // Respond directly with 409 Conflict (or 400 Bad Request)
           return res.status(409).json(
-            new ApiResponse(409, {}, "Video duration exceeds the predefined limit")
+            new ApiResponse(409, { videoUrl: video.videoUrl }, "Video duration exceeds the 20-minute limit")
           );
         }
       }
-    } catch (error) {
-      console.error("❌ Error fetching video details or duration exceeded:", error.message);
-
-      if (error instanceof ApiError) {
-        return res.status(error.statusCode).json(
-          new ApiResponse(error.statusCode, null, error.message)
-        );
-      }
-
-      // Set default values if fetching fails
-      video.thumbnailUrl = "https://havecamerawilltravel.com/wp-content/uploads/2020/01/youtube-thumbnails-size-header-1-800x450.png";
-      video.title = "Title Unavailable";
-      video.duration = "Unknown";
+    } catch (fetchError) {
+      // Log the error but proceed with defaults if fetching fails
+      console.error("⚠️ AddVideo Warning: Error fetching video details, proceeding with defaults.", fetchError.message);
+      // Set default values if fetching failed or was skipped
+      video.thumbnailUrl = video.thumbnailUrl || "https://havecamerawilltravel.com/wp-content/uploads/2020/01/youtube-thumbnails-size-header-1-800x450.png";
+      video.title = video.title || "Title Unavailable";
+      video.duration = video.duration || "Unknown";
+      // Do not return here, just use defaults and save later
     }
 
-    await video.save();
+    try {
+      await video.save();
+      // console.log(`ℹ️ AddVideo Info: New video entry created for URL: ${videoUrl}`);
+    } catch (dbError) {
+      console.error("❌ AddVideo DB Error: Failed to save new video entry.", dbError);
+      return res.status(500).json(new ApiResponse(500, null, "Database error saving new video"));
+    }
+
   } else if (video.requestSent) {
-    // If request is already sent, return immediately
-    const user = await User.findById(userId).populate("watchHistory");
+    // --- Video exists and request already sent ---
+    // console.log(`ℹ️ AddVideo Info: Request previously sent for video URL: ${videoUrl}`);
+    try {
+      // Still add to user's watch history if not already there
+      const user = await User.findById(userId); // No need to populate here initially
+      if (!user) {
+        console.error(`❌ AddVideo Error: User ${userId} not found despite being authenticated.`);
+        return res.status(404).json(new ApiResponse(404, null, "Authenticated user not found"));
+      }
+      // Check if video._id is already in watchHistory (more efficient)
+      if (!user.watchHistory.includes(video._id)) {
+        user.watchHistory.push(video._id);
+        await user.save();
+        // console.log(`ℹ️ AddVideo Info: Added existing video ${video._id} to user ${userId}'s history.`);
+      }
+      // Respond directly with 200 OK
+      return res.status(200).json(
+        new ApiResponse(200, video, "Video processing previously initiated")
+      );
+    } catch (dbError) {
+      console.error("❌ AddVideo DB Error: Failed checking/updating user history for existing video.", dbError);
+      // Don't halt processing, but maybe log it. Respond as if successful.
+      return res.status(200).json(
+        new ApiResponse(200, video, "Video processing previously initiated (history update might have failed)")
+      );
+    }
+  }
 
-    if (!user) throw new ApiError(404, "User not found");
-    const alreadyInHistory = user.watchHistory.some(v => v.videoUrl === videoUrl);
-
-    if (!alreadyInHistory) {
+  // --- Add to User Watch History (if not already done) ---
+  // This section runs if video existed but request wasn't sent OR if it was just created.
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      // Should have been caught earlier if requestSent was true, but handle defensively
+      console.error(`❌ AddVideo Error: User ${userId} not found despite being authenticated.`);
+      return res.status(404).json(new ApiResponse(404, null, "Authenticated user not found"));
+    }
+    if (!user.watchHistory.includes(video._id)) {
       user.watchHistory.push(video._id);
       await user.save();
+      // console.log(`ℹ️ AddVideo Info: Added video ${video._id} to user ${userId}'s history.`);
     }
-    return res.status(200).json(
-      new ApiResponse(200, video, "Video already in database")
-    );
+  } catch (dbError) {
+    console.error("❌ AddVideo DB Error: Failed adding video to user history.", dbError);
+    // Decide if this is critical. Maybe proceed but log the error?
+    // Proceeding for now, but might want to return 500 depending on requirements.
   }
 
-  // Fetch user & ensure they exist
-  const user = await User.findById(userId).populate("watchHistory");
-  if (!user) throw new ApiError(404, "User not found");
-
-  // Check if video is in watch history
-  const alreadyInHistory = user.watchHistory.some(v => v.videoUrl === videoUrl);
-
-  if (!alreadyInHistory) {
-    user.watchHistory.push(video._id);
-    await user.save();
-  }
-
+  // --- Send Request to External API ---
   if (!video.requestSent && apiUrl) {
     try {
-      // Determine the appropriate server URL based on environment
       const serverUrl = process.env.NODE_ENV === "development"
-        ? config.ngrokUrl
-        : process.env.RENDER_EXTERNAL_URL;
+        ? config.ngrokUrl // Ensure ngrokUrl is in config
+        : process.env.RENDER_EXTERNAL_URL; // Ensure this is set in production
 
+      if (!serverUrl) {
+         console.error("❌ AddVideo Config Error: Server callback URL (ngrok or RENDER_EXTERNAL_URL) is not defined.");
+         return res.status(500).json(new ApiResponse(500, null, "Server configuration error: Callback URL missing"));
+      }
+
+      // console.log(`ℹ️ AddVideo Info: Sending request to external API (${apiUrl}) for video ${video._id}`);
       const response = await axios.post(apiUrl, {
-        videoId: video._id,
-        videoUrl: videoUrl,
+        videoId: video._id.toString(), // Ensure ID is sent as string if needed
+        videoUrl: video.videoUrl,
         serverUrl: serverUrl
-      });
+      }, { timeout: 10000 }); // Add a timeout
 
-      if (response.data && response.data.id) {
+      // --- Process External API Response ---
+      if (response.data && response.data.id && response.data.videoInfo) {
         const { id, videoInfo } = response.data;
         const { title, thumbnail, duration, video_url } = videoInfo;
 
-        // Validate required fields
-        if (!id) {
-          return res.status(400).json(
-            new ApiResponse(400, null, "Video ID is required")
-          );
-        }
-
         // Helper function to format duration
-        const formatDuration = (durationInSeconds) => {
-          const minutes = Math.floor(durationInSeconds / 60);
-          const seconds = durationInSeconds % 60;
-          return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+        const formatDuration = (seconds) => {
+            if (typeof seconds !== 'number' || isNaN(seconds) || seconds < 0) return "00:00";
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
         };
 
         try {
-          // Find or update video
-          let videoToUpdate = await Video.findById(id);
-          
-          if (!videoToUpdate) {
-            videoToUpdate = new Video({
-              _id: id,
-              videoUrl: video_url || "https://www.youtube.com/watch?v=default",
-              title: title || "Untitled Video",
-              thumbnailUrl: thumbnail || "https://i.ytimg.com/vi/default/hqdefault.jpg",
-              duration: formatDuration(duration || 0),
-            });
-          } else {
-            videoToUpdate.title = title || videoToUpdate.title;
-            videoToUpdate.thumbnailUrl = thumbnail || videoToUpdate.thumbnailUrl;
-            videoToUpdate.duration = formatDuration(duration || videoToUpdate.duration);
-            videoToUpdate.videoUrl = video_url || videoToUpdate.videoUrl;
+          // Update the video document with details from the external API
+          // Note: Using findByIdAndUpdate is often more concise
+          const updatedVideo = await Video.findByIdAndUpdate(
+            video._id, // Use the ID of the video we've been working with
+            {
+              title: title || video.title, // Keep existing if new is null/undefined
+              thumbnailUrl: thumbnail || video.thumbnailUrl,
+              duration: formatDuration(duration) || video.duration,
+              // videoUrl: video_url || video.videoUrl, // Usually don't update the original URL
+              requestSent: true // Mark request as successfully sent
+            },
+            { new: true } // Return the updated document
+          );
+
+          if (!updatedVideo) {
+             // This would be unusual if we just found/created it
+             console.error(`❌ AddVideo DB Error: Failed to find video ${video._id} for update after API call.`);
+             return res.status(404).json(new ApiResponse(404, null, "Video not found during update"));
           }
 
-          videoToUpdate.requestSent = true;
-          await videoToUpdate.save();
-
+          console.log(`✅ AddVideo Success: Request sent and video ${updatedVideo._id} marked.`);
+          // Respond directly with 201 Created (or 200 OK if preferred)
           return res.status(201).json(
-            new ApiResponse(201, videoToUpdate, "Saved successfully")
+            new ApiResponse(201, updatedVideo, "Video processing initiated successfully")
           );
-        } catch (error) {
-          video.requestSent = false;
-          await video.save();
-          console.error("Error during video save:", error);
-          throw new ApiError(500, "Failed to save video details");
+
+        } catch (dbError) {
+          console.error("❌ AddVideo DB Error: Failed to update video after successful API call.", dbError);
+          // Don't reset requestSent, as the external API *did* process it. The failure is internal.
+          return res.status(500).json(
+            new ApiResponse(500, null, "Failed to update video details in database after successful external processing.")
+          );
         }
       } else {
-        console.warn("⚠️ External API did not return a valid response.");
-        video.requestSent = false;
-        await video.save();
-        throw new ApiError(502, "External API returned invalid response");
-      }
-    } catch (error) {
-      video.requestSent = false;
-      await video.save();
-
-      if (error.response?.status === 409) {
-        return res.status(409).json(
-          new ApiResponse(409, {}, "Video duration exceeds the predefined limit")
+        // --- External API returned invalid data ---
+        console.warn("⚠️ AddVideo Warning: External API did not return a valid response structure or required 'id'.", response.data);
+        // Don't mark requestSent as true
+        return res.status(502).json(
+          new ApiResponse(502, null, "External API returned an invalid or incomplete response")
         );
       }
+    } catch (error) {
+      // --- Error during Axios request ---
+      // Reset requestSent flag as the call failed
+      try {
+        video.requestSent = false;
+        await video.save();
+      } catch (saveError) {
+         console.error("❌ AddVideo DB Error: Failed to reset requestSent flag after API call error.", saveError);
+         // Continue to report the original API error
+      }
 
-      console.error("❌ Error sending request:", error.message);
-      throw new ApiError(503, "External service unavailable");
+      if (error.response) {
+        // The request was made and the server responded with a status code outside 2xx
+        console.error(`❌ AddVideo API Error: External API responded with status ${error.response.status}`, error.response.data);
+        const statusCode = error.response.status;
+        let message = `External service error (Status ${statusCode})`;
+        if (statusCode === 409) {
+            message = "Video duration may exceed the limit set by the external service";
+        } else if (error.response.data?.message) {
+            message = error.response.data.message; // Use message from external API if available
+        }
+        return res.status(statusCode).json(new ApiResponse(statusCode, null, message));
+
+      } else if (error.request) {
+        // The request was made but no response was received (e.g., timeout, network error)
+        console.error("❌ AddVideo Network Error: No response received from external API.", error.message);
+        return res.status(504).json(new ApiResponse(504, null, "External service timed out or is unreachable"));
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.error("❌ AddVideo Client Error: Error setting up request to external API.", error.message);
+        return res.status(500).json(new ApiResponse(500, null, "Internal error preparing request for external service"));
+      }
     }
+  } else if (video.requestSent) {
+     // This case should ideally be caught by the 'else if (video.requestSent)' block earlier.
+     // If we reach here, it implies apiUrl was not provided but request was marked sent.
+    //  console.log(`ℹ️ AddVideo Info: Video ${video._id} already marked as requestSent, no external API URL configured or needed.`);
+     return res.status(200).json(
+         new ApiResponse(200, video, "Video processing previously initiated or external API skipped")
+     );
+  } else {
+      // Case: !video.requestSent AND !apiUrl (External API not configured)
+      console.warn("⚠️ AddVideo Warning: External API URL not configured. Cannot send processing request.");
+      return res.status(501).json(
+          new ApiResponse(501, video, "External processing service is not configured")
+      );
   }
 
-  // If we get here and video.requestSent is true but no API call was made
-  return res.status(200).json(
-    new ApiResponse(200, video, "Video processing initiated")
-  );
 });
+
+
 
 
 const getTranscript = asyncHandler(async (req, res) => {

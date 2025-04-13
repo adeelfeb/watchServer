@@ -1,10 +1,10 @@
 import { verifyAdmin } from '../middlewares/adminMiddleware.js';
-import {getAllUsers, createUser, makeAdmin, getDashboardStats, getAllVideos, toggleUserStatus, deleteUserAccount, deleteVideo, deleteBulkVideos, uploadVideo} from '../controllers/admin.controller.js'
+import {getAllUsers, createUser, makeAdmin, getCurrentUser, getDashboardStats, getAllVideos, toggleUserStatus, deleteUserAccount, deleteVideo, deleteBulkVideos, uploadVideo} from '../controllers/admin.controller.js'
 import multer from "multer"; // Import multer
 import { upload } from "../middlewares/multer.middleware.js";
 import { Router } from 'express';
 
-const router = Router();
+const router = Router(); 
 
 router.route('/make-admin').post(makeAdmin)
 
@@ -34,6 +34,7 @@ router.use((err, req, res, next) => {
 router.route('/stats').get(getDashboardStats);
 router.route('/videos').get(getAllVideos);
 router.route('/videos/:videoId').delete(deleteVideo);
+router.route("/current-user").post(getCurrentUser)
 
 
 router.route("/bulk-delete").delete(deleteBulkVideos); // Assign the correct controller

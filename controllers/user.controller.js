@@ -288,6 +288,11 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 
+const getCurrentUser = asyncHandler(async (req, res) => {
+    // console.log("Current user fetched:", req.user._id);
+    return res.status(200).json(new ApiResponse(200, req.user, "Current user fetched successfully"));
+});
+
 
 const uploadVideo = asyncHandler(async (req, res) => {
     // Check if video file is present
@@ -569,10 +574,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
 
 
-const getCurrentUser = asyncHandler(async (req, res) => {
-    // console.log("Current user fetched:", req.user._id);
-    return res.status(200).json(new ApiResponse(200, req.user, "Current user fetched successfully"));
-});
+
 
 
 const forgetPassword = asyncHandler(async (req, res)=>{

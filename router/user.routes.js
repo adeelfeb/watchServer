@@ -83,7 +83,9 @@ router.route("/login-with-temp-token").post(loginWithTempToken)
 router.route("/logout").post(verifyJWT, logoutUser)
 router.route("/change-password").patch(verifyJWT, changeCurrentPassword)
 router.route("/check-password").patch(verifyJWT, checkPassword)
-router.route("/current-user").post(verifyJWT, getCurrentUser)
+
+router.route("/current-user").get(verifyJWT, getCurrentUser)
+
 router.route("/update-account").patch(verifyJWT, updateAccountDetails)
 router.route("/update-avatar").patch(verifyJWT, upload.single("avatar"), updateUserAvatar )
 router.route("/cover-image").patch(verifyJWT, upload.single("coverImage"), updateUserCoverImage)

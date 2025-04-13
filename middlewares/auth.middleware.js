@@ -5,10 +5,14 @@ import { User } from "../models/user.model.js";
 // Verify JWT token and fetch user data
 export const verifyJWT = async (req, res, next) => {
     try {
+
+        // if(req.cookies.accessToken){
+        //     console.log("req has accessToken" )
+        // }
         const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "");
 
         if (!token) {
-            return res.status(401).json({ message: "Token not provided" });
+            return res.status(401).json({ message: "Access Token in Cookies not provided" });
         }
 
         const decodedToken = await verifyTokenAsync(token, process.env.ACCESS_TOKEN_SECRET);

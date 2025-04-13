@@ -151,86 +151,29 @@ const googleAuth = asyncHandler(async (req, res) => {
 
 
 
-// const loginUser = asyncHandler(async (req, res)=>{
-//   const { email, password, username } = req.body;
-//   // console.log(email,password, username)
-  
-//   if(!(username || email)){
-//       throw new ApiError(400, "User or email required")
-//   }
-
-//   const user = await User.findOne({
-//       $or: [{username}, {email}]
-//   })
-
-//   if(!user){
-//       throw new ApiError(404, "User does not exist")
-//   }
-
-//   const isPasswordValid = await user.isPasswordCorrect(password)
-
-//   if(!isPasswordValid){
-//       throw new ApiError(401, "Invalide user Credentials #Password")
-//   }
-
-
-//   const {accessToken, refreshToken} = await generateAccessAndRefreshToken(user._id)
-
-//   const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
-
-//   const options = {
-//       httpOnly: true,
-//       secure: true, // Required for HTTPS
-//       sameSite: 'none', // Required for cross-origin cookies
-//   };
-  
-
-//   return res.status(200)
-//   .cookie("accessToken", accessToken, options)
-//   .cookie("refreshToken", refreshToken, options)
-//   .json(
-//       new ApiResponse(200,
-//           {
-//               accessToken, refreshToken
-//           },
-//           "User LoggedIn successfully"
-//       )
-//   )
-
-// })
 
 const loginUser = asyncHandler(async (req, res) => {
     const { email, password, username } = req.body;
 
     // 1. Validate Input
     if (!(username || email)) {
-        // Still appropriate to throw for bad request input
         throw new ApiError(400, "Username or email is required");
     }
 
     // 2. Find User
     const user = await User.findOne({
         $or: [{ username: username?.toLowerCase() }, { email: email?.toLowerCase() }]
-    }).select("+password"); // Select password only if your `isPasswordCorrect` method needs it passed externally
+    }).select("+password"); // Temporarily select password if needed for check
 
     if (!user) {
-        // Use a more specific error for user not found, but still throw
         throw new ApiError(404, "User not found with the provided credentials.");
     }
 
-    // 3. **** Check if User is Active ****
+    // 3. Check if User is Active
     if (!user.isActive) {
-        // --- MODIFICATION HERE ---
-        // Instead of throwing, return a specific 403 response
         return res.status(403).json(
-            new ApiResponse(
-                403, // Status code
-                null, // No user data or tokens should be sent
-                "Your account has been deactivated. Please contact support." // Clear message
-                // The ApiResponse constructor should handle setting success: false based on status code > 299
-            )
+            new ApiResponse(403, null, "Your account has been deactivated. Please contact support.")
         );
-        // --- END MODIFICATION ---
     }
 
     // 4. Validate Password
@@ -244,43 +187,46 @@ const loginUser = asyncHandler(async (req, res) => {
     const isPasswordValid = await user.isPasswordCorrect(password);
 
     if (!isPasswordValid) {
-        // Still appropriate to throw for invalid credentials
         throw new ApiError(401, "Invalid username/email or password.");
     }
 
-    // 5. Generate Tokens
+    
     const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
 
-    // 6. Update Refresh Token in DB
-    // Refetch to avoid saving potentially selected password field
-    const userToSave = await User.findById(user._id);
-    if (!userToSave) throw new ApiError(500, "Failed to retrieve user for saving token.");
+    
+    const userToSave = await User.findById(user._id); // Refetch without selecting password
+    if (!userToSave) throw new ApiError(500, "Failed to retrieve user for saving refresh token.");
     userToSave.refreshToken = refreshToken;
-    await userToSave.save({ validateBeforeSave: false });
+    await userToSave.save({ validateBeforeSave: false }); // Avoid re-running validations if not needed
 
-    // 7. Prepare Response Data
+    
     const loggedInUserDetails = await User.findById(user._id).select("-password -refreshToken");
+     if (!loggedInUserDetails) throw new ApiError(500, "Failed to retrieve user details for response.");
 
-    // 8. Set Cookies
-    const options = {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'Strict', // Or 'Lax' or 'None'
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+
+    const accessTokenOptions = {
+        httpOnly: true, // Prevents client-side JS access
+        secure: process.env.NODE_ENV === 'production', // **IMPORTANT**: Only set 'secure' in production (HTTPS)
+        sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', // 'None' for cross-origin (needs secure=true), 'Lax' for same-origin or top-level navigation
+        maxAge: 1000 * 60 * 15 // 15 minutes (match access token expiry)
     };
 
-    // 9. Send Success Response
+    const refreshTokenOptions = {
+        ...accessTokenOptions, // Inherit httpOnly, secure, sameSite
+        maxAge: 1000 * 60 * 60 * 24 * 10 // 10 days (match refresh token expiry)
+    };
+    // 9. Send Success Response (Set Cookies and Send User Data)
     return res
         .status(200)
-        .cookie("accessToken", accessToken, options)
-        .cookie("refreshToken", refreshToken, options)
+        .cookie("accessToken", accessToken, accessTokenOptions) // Set access token cookie
+        .cookie("refreshToken", refreshToken, refreshTokenOptions) // Set refresh token cookie
         .json(
             new ApiResponse(
                 200,
                 {
                     user: loggedInUserDetails,
-                    accessToken,
-                    // refreshToken // Not in body
+                    // !! REMOVED accessToken from response body - rely on the cookie !!
+                    // refreshToken was already correctly omitted from body
                 },
                 "User logged in successfully"
             )

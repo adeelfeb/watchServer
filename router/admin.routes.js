@@ -34,7 +34,7 @@ router.use((err, req, res, next) => {
 router.route('/stats').get(getDashboardStats);
 router.route('/videos').get(getAllVideos);
 router.route('/videos/:videoId').delete(deleteVideo);
-router.route("/current-user").post(getCurrentUser)
+router.route("/current-admin").post(getCurrentUser)
 
 
 router.route("/bulk-delete").delete(deleteBulkVideos); // Assign the correct controller

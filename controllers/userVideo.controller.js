@@ -262,7 +262,7 @@ const addVideo = asyncHandler(async (req, res) => {
         const statusCode = error.response.status;
         let message = `External service error (Status ${statusCode})`;
         if (statusCode === 409) {
-            message = "Video duration may exceed the limit set by the external service";
+            message = "Video duration exceed the limit set by the external service";
         } else if (error.response.data?.message) {
             message = error.response.data.message; // Use message from external API if available
         }

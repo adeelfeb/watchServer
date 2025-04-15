@@ -385,8 +385,6 @@ const uploadVideo = asyncHandler(async (req, res) => {
 
   const loginWithTempToken = asyncHandler(async (req, res) => {
     const { temporaryToken } = req.body;  // Extract token from the request body
-    console.log("Received request body in loginWithTempToken:", req.body);
-    console.log("Extracted temporaryToken:", temporaryToken);
 
     if (!temporaryToken) {
         // This check is now working correctly based on your logs

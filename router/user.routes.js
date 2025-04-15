@@ -121,8 +121,4 @@ router.route("/history").get(verifyJWT, getWatchHistory)
 router.route("/delete-from-history").delete(verifyJWT, deleteHistory)
 router.route("/refreshToken").get(verifyJWT, refreshAccessToken)
 
-
-
-
-
 export default router

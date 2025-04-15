@@ -25,7 +25,7 @@ const scoreSchema = new Schema(
       {
         question: { type: String, required: true },
         selectedOption: { type: String, required: true },
-        correctOption: { type: String, default: "Not provided" }, // Optional field with default value
+        correctOption: { type: String, default: "Not provided" }, 
         isCorrect: { type: Boolean, required: true }, // Whether the selected option is correct
         score: { type: Number, default: 0 }, // Score for MCQ (1 if correct, 0 otherwise)
       },

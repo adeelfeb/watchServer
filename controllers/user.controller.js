@@ -10,8 +10,8 @@ import config from "../src/conf.js";
 // import admin from "firebase-admin";
 import {admin} from '../utils/firebase.js'
 
-import crypto from 'crypto';                    // Built-in Node.js module for crypto
-import nodemailer from 'nodemailer';      
+// import crypto from 'crypto';                    // Built-in Node.js module for crypto
+// import nodemailer from 'nodemailer';      
 
 
 
@@ -665,119 +665,119 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
 
 // --- Helper Function for Email Sending (Optional but Recommended) ---
-const sendEmail = async (options) => {
-    // 1. Create a transporter (object that sends email)
-    //    Configure based on your chosen service (using .env variables)
-    const transporter = nodemailer.createTransport({
-        // service: process.env.EMAIL_SERVICE, // Can use service name for common ones (like 'gmail')
-        host: process.env.EMAIL_HOST,
-        port: process.env.EMAIL_PORT,
-        secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports like 587
-        auth: {
-            user: process.env.EMAIL_USER, // Your email address
-            pass: process.env.EMAIL_PASS, // Your email password or app password
-        },
-        // For local development with self-signed certs, you might need:
-        // tls: { rejectUnauthorized: false }
-    });
+// const sendEmail = async (options) => {
+//     // 1. Create a transporter (object that sends email)
+//     //    Configure based on your chosen service (using .env variables)
+//     const transporter = nodemailer.createTransport({
+//         // service: process.env.EMAIL_SERVICE, // Can use service name for common ones (like 'gmail')
+//         host: process.env.EMAIL_HOST,
+//         port: process.env.EMAIL_PORT,
+//         secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports like 587
+//         auth: {
+//             user: process.env.EMAIL_USER, // Your email address
+//             pass: process.env.EMAIL_PASS, // Your email password or app password
+//         },
+//         // For local development with self-signed certs, you might need:
+//         // tls: { rejectUnauthorized: false }
+//     });
 
-    // 2. Define the email options
-    const mailOptions = {
-        from: process.env.EMAIL_FROM, // Sender address (defined in .env)
-        to: options.email,            // Recipient address
-        subject: options.subject,     // Subject line
-        text: options.message,        // Plain text body
-        // html: '<b>Hello world?</b>' // You can also add HTML content
-    };
+//     // 2. Define the email options
+//     const mailOptions = {
+//         from: process.env.EMAIL_FROM, // Sender address (defined in .env)
+//         to: options.email,            // Recipient address
+//         subject: options.subject,     // Subject line
+//         text: options.message,        // Plain text body
+//         // html: '<b>Hello world?</b>' // You can also add HTML content
+//     };
 
-    // 3. Actually send the email
-    try {
-        await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully.');
-    } catch (error) {
-        console.error('Error sending email:', error);
+//     // 3. Actually send the email
+//     try {
+//         await transporter.sendMail(mailOptions);
+//         console.log('Email sent successfully.');
+//     } catch (error) {
+//         console.error('Error sending email:', error);
         
-    }
-};
-// --- End Helper Function ---
+//     }
+// };
+// // --- End Helper Function ---
 
 
-const forgetPassword1 = asyncHandler(async (req, res) => {
-    const { email } = req.body;
+// const forgetPassword1 = asyncHandler(async (req, res) => {
+//     const { email } = req.body;
 
-    if (!email) {
-        // Use ApiError if you have it, otherwise just send status
-        // throw new ApiError(400, "Please provide Email");
-        return res.status(400).json(new ApiResponse(400, {}, "Please provide Email"));
-    }
+//     if (!email) {
+//         // Use ApiError if you have it, otherwise just send status
+//         // throw new ApiError(400, "Please provide Email");
+//         return res.status(400).json(new ApiResponse(400, {}, "Please provide Email"));
+//     }
 
-    // 1. Find user by email
-    const user = await User.findOne({ email });
+//     // 1. Find user by email
+//     const user = await User.findOne({ email });
 
-    // IMPORTANT: Security Measure!
-    // Even if the user is NOT found, send a generic success response.
-    // This prevents attackers from guessing which emails are registered.
-    if (!user) {
-        console.log(`Password reset requested for non-existent email: ${email}`);
-        return res.status(200).json(new ApiResponse(200, {}, "If your email is registered, you will receive a password reset link."));
-    }
+//     // IMPORTANT: Security Measure!
+//     // Even if the user is NOT found, send a generic success response.
+//     // This prevents attackers from guessing which emails are registered.
+//     if (!user) {
+//         console.log(`Password reset requested for non-existent email: ${email}`);
+//         return res.status(200).json(new ApiResponse(200, {}, "If your email is registered, you will receive a password reset link."));
+//     }
 
-    // 2. Generate a random reset token
-    const resetToken = crypto.randomBytes(32).toString('hex'); // Generate secure token
+//     // 2. Generate a random reset token
+//     const resetToken = crypto.randomBytes(32).toString('hex'); // Generate secure token
 
-    // 3. Hash the token and set it on the user model (store the hash, not the plain token)
-    //    The token sent to the user is the plain one. We compare its hash later.
-    user.passwordResetToken = crypto
-        .createHash('sha256')
-        .update(resetToken)
-        .digest('hex');
+//     // 3. Hash the token and set it on the user model (store the hash, not the plain token)
+//     //    The token sent to the user is the plain one. We compare its hash later.
+//     user.passwordResetToken = crypto
+//         .createHash('sha256')
+//         .update(resetToken)
+//         .digest('hex');
 
-    // 4. Set token expiry (e.g., 10 minutes)
-    user.passwordResetTokenExpires = Date.now() + 10 * 60 * 1000; // 10 minutes from now
+//     // 4. Set token expiry (e.g., 10 minutes)
+//     user.passwordResetTokenExpires = Date.now() + 10 * 60 * 1000; // 10 minutes from now
 
-    try {
-        // Save the user with the token and expiry date
-        await user.save({ validateBeforeSave: false }); // Skip validation if needed for temp fields
+//     try {
+//         // Save the user with the token and expiry date
+//         await user.save({ validateBeforeSave: false }); // Skip validation if needed for temp fields
 
-        // 5. Create the reset URL (points to your frontend)
-        const resetURL = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`; // Pass the PLAIN token
+//         // 5. Create the reset URL (points to your frontend)
+//         const resetURL = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`; // Pass the PLAIN token
 
-        // 6. Prepare the email message
-        const message = `
-You are receiving this email because you (or someone else) have requested the reset of a password for your account.
-Please click on the following link, or paste this into your browser to complete the process:
-${resetURL}
-This link will expire in 10 minutes.
-If you did not request this, please ignore this email and your password will remain unchanged.
-`;
+//         // 6. Prepare the email message
+//         const message = `
+// You are receiving this email because you (or someone else) have requested the reset of a password for your account.
+// Please click on the following link, or paste this into your browser to complete the process:
+// ${resetURL}
+// This link will expire in 10 minutes.
+// If you did not request this, please ignore this email and your password will remain unchanged.
+// `;
 
-        // 7. Send the email using the helper function
-        await sendEmail({
-            email: user.email,
-            subject: 'Your Password Reset Token (valid for 10 min)',
-            message,
-        });
+//         // 7. Send the email using the helper function
+//         await sendEmail({
+//             email: user.email,
+//             subject: 'Your Password Reset Token (valid for 10 min)',
+//             message,
+//         });
 
-        // 8. Send success response to the client
-        return res.status(200).json(new ApiResponse(200, {}, "Password reset token sent to email successfully."));
+//         // 8. Send success response to the client
+//         return res.status(200).json(new ApiResponse(200, {}, "Password reset token sent to email successfully."));
 
-    } catch (err) {
-        console.error("Error during password reset process:", err);
-        // Clear the token fields if saving failed or email sending failed critically
-        user.passwordResetToken = undefined;
-        user.passwordResetTokenExpires = undefined;
-        // Try to save the cleared fields (optional, depends on error handling strategy)
-        try {
-            await user.save({ validateBeforeSave: false });
-        } catch (saveError) {
-            console.error("Error clearing reset token after failure:", saveError);
-        }
+//     } catch (err) {
+//         console.error("Error during password reset process:", err);
+//         // Clear the token fields if saving failed or email sending failed critically
+//         user.passwordResetToken = undefined;
+//         user.passwordResetTokenExpires = undefined;
+//         // Try to save the cleared fields (optional, depends on error handling strategy)
+//         try {
+//             await user.save({ validateBeforeSave: false });
+//         } catch (saveError) {
+//             console.error("Error clearing reset token after failure:", saveError);
+//         }
 
-        // Use ApiError or standard response
-        // throw new ApiError(500, "There was an error sending the password reset email. Please try again later.");
-        return res.status(500).json(new ApiResponse(500, { error: err.message }, "Error sending password reset email."));
-    }
-});
+//         // Use ApiError or standard response
+//         // throw new ApiError(500, "There was an error sending the password reset email. Please try again later.");
+//         return res.status(500).json(new ApiResponse(500, { error: err.message }, "Error sending password reset email."));
+//     }
+// });
 
 
 

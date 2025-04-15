@@ -10,6 +10,9 @@ import config from "../src/conf.js";
 // import admin from "firebase-admin";
 import {admin} from '../utils/firebase.js'
 
+import crypto from 'crypto';                    // Built-in Node.js module for crypto
+import nodemailer from 'nodemailer';      
+
 
 
 
@@ -21,13 +24,46 @@ const registerUser = asyncHandler(async (req, res) => {
     if (!fullname || !email || !username) {
         return res.status(400).json(new ApiResponse(400, null, "Full name, email, and username are required"));
     }
+    
+    
+    const normalizedUsername = username.toLowerCase();
+    const normalizedEmail = email.toLowerCase(); // Good practice for email too
 
-    // Check if user already exists
-    const existedUser = await User.findOne({ $or: [{ username }, { email }] });
+    // console.log(`Checking DB for: username='${normalizedUsername}', email='${normalizedEmail}'`);
+    // ---
 
-    if (existedUser) {
-        return res.status(409).json(new ApiResponse(409, null, "User already exists. Please use a different email or username."));
+    const [userByUsername, userByEmail] = await Promise.all([
+        User.findOne({ username: normalizedUsername }).lean(),
+        User.findOne({ email: normalizedEmail }).lean()
+    ]);
+
+    
+    
+
+    let conflictMessage = null;
+
+    // ... (rest of the conflict checking logic remains the same) ...
+
+    if (userByUsername && userByEmail) {
+        if (userByUsername._id.toString() === userByEmail._id.toString()) {
+            // This block is correctly triggered if inputs are 'undefined' and the DB has that user
+            conflictMessage = "Username and Email are already registered to the same account.";
+        } else {
+            conflictMessage = "Username is already taken, and the Email is already registered.";
+        }
+    } else if (userByUsername) {
+        conflictMessage = "Username is already taken.";
+    } else if (userByEmail) {
+        conflictMessage = "Email is already registered.";
     }
+
+
+    if (conflictMessage) {
+        return res.status(409).json(new ApiResponse(409, null, conflictMessage));
+    }
+
+    // --- 5. No Conflicts - Proceed with User Creation ---
+    // console.log("Username and Email are available. Proceeding with registration...");
 
     // Handle avatar and cover image upload
     const avatarLocalPath = req.files?.avatar?.[0]?.path || null;
@@ -61,6 +97,7 @@ const registerUser = asyncHandler(async (req, res) => {
     });
 
     const createdUser = await User.findById(user._id).select("-password -refreshToken");
+    // console.log("The created is :", createdUser)
 
     if (!createdUser) {
         return res.status(500).json(new ApiResponse(500, null, "Something went wrong while registering the user."));
@@ -70,7 +107,7 @@ const registerUser = asyncHandler(async (req, res) => {
     const temporaryToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
     const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
 
-    return res.status(201).json(new ApiResponse(201, { accessToken, refreshToken, temporaryToken }, "User registered and logged in successfully"));
+    return res.status(201).json(new ApiResponse(201, { accessToken, refreshToken, temporaryToken, createdUser }, "User registered and logged in successfully"));
 });
 
 
@@ -345,19 +382,20 @@ const uploadVideo = asyncHandler(async (req, res) => {
   });
 
 
-const loginWithTempToken = asyncHandler(async (req, res) => {
-    const { token: temporaryToken } = req.body;  // Extract token from the request body
+
+  const loginWithTempToken = asyncHandler(async (req, res) => {
+    const { temporaryToken } = req.body;  // Extract token from the request body
+    console.log("Received request body in loginWithTempToken:", req.body);
+    console.log("Extracted temporaryToken:", temporaryToken);
 
     if (!temporaryToken) {
-        throw new ApiError(400, "Temporary token is required");  // Ensure the token is provided
+        // This check is now working correctly based on your logs
+        throw new ApiError(400, "Temporary token is required");
     }
 
     try {
         // Verify the temporary token
-        // console.log("Here in the TempToken Login:", temporaryToken);
         const decoded = jwt.verify(temporaryToken, process.env.JWT_SECRET);
-
-        // Extract userId from the decoded token
         const userId = decoded.userId;
 
         // Fetch the user from the database using the userId
@@ -367,23 +405,129 @@ const loginWithTempToken = asyncHandler(async (req, res) => {
         }
 
         // Generate new access and refresh tokens for the user
-        const accessToken = user.generateAccessToken();  // Assuming generateAccessToken is a method in your User model
-        const refreshToken = user.generateRefreshToken();  // Assuming generateRefreshToken is a method in your User model
+        const accessToken = user.generateAccessToken();
+        const refreshToken = user.generateRefreshToken();
 
         // Save the new refresh token in the user's document
         user.refreshToken = refreshToken;
         await user.save({ validateBeforeSave: false });
 
-        // Return the generated tokens in the response
-        return res.status(200).json(new ApiResponse(200, {
-            accessToken,
-            refreshToken
-        }, "Logged in successfully"));
+        const accessTokenOptions = {
+            httpOnly: true, // Prevents client-side JS access
+            secure: process.env.NODE_ENV === 'production', // **IMPORTANT**: Only set 'secure' in production (HTTPS)
+            sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', // 'None' for cross-origin (needs secure=true), 'Lax' for same-origin or top-level navigation
+            maxAge: 1000 * 60 * 15 // 15 minutes (match access token expiry)
+        };
+
+        const refreshTokenOptions = {
+            ...accessTokenOptions, // Inherit httpOnly, secure, sameSite
+            maxAge: 1000 * 60 * 60 * 24 * 10 // 10 days (match refresh token expiry)
+        };
+
+        // --- CORRECTED ORDER ---
+        // 1. Set status
+        // 2. Set cookies
+        // 3. Send JSON response (this finalizes the response)
+        return res
+            .status(200)
+            .cookie("accessToken", accessToken, accessTokenOptions) // Set cookie 1
+            .cookie("refreshToken", refreshToken, refreshTokenOptions) // Set cookie 2
+            .json(new ApiResponse(200, { // Send JSON body LAST
+                // Optionally return user data if frontend needs it immediately
+                user: {
+                    _id: user._id,
+                    username: user.username,
+                    email: user.email,
+                    fullname: user.fullname,
+                    avatar: user.avatar,
+                    isAdmin: user.isAdmin,
+                    isActive: user.isActive
+                    // add other non-sensitive fields if needed
+                },
+                // You can still include tokens in the body if your frontend
+                // prefers accessing them directly sometimes, alongside the cookies.
+                accessToken: accessToken,
+                refreshToken: refreshToken
+            }, "Logged in successfully"));
+        // --- END CORRECTION ---
+
     } catch (error) {
         console.error("Error during login with temporary token:", error);
+        // Make sure no response is sent here if headers might have already been partially sent in the try block
+        // (asyncHandler usually prevents double responses from the 'throw' below)
+        // If the error is JWT expiration or invalid signature, it's often better to send 401 Unauthorized
+        if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+            throw new ApiError(401, error.message || "Invalid or expired temporary token");
+        }
+        // Otherwise, re-throw the generic error to be caught by global error handler
         throw new ApiError(500, "Something went wrong while logging in with temporary token");
     }
 });
+
+// const loginWithTempToken = asyncHandler(async (req, res) => {
+//     const {temporaryToken } = req.body;  // Extract token from the request body
+//     console.log("Received request body in loginWithTempToken:", req.body);
+//     console.log("Extracted temporaryToken:", temporaryToken);
+
+//     if (!temporaryToken) {
+//         throw new ApiError(400, "Temporary token is required");  // Ensure the token is provided
+//     }
+
+//     try {
+//         // Verify the temporary token
+//         // console.log("Here in the TempToken Login:", temporaryToken);
+//         const decoded = jwt.verify(temporaryToken, process.env.JWT_SECRET);
+
+//         // Extract userId from the decoded token
+//         const userId = decoded.userId;
+
+//         // Fetch the user from the database using the userId
+//         const user = await User.findById(userId);
+//         if (!user) {
+//             throw new ApiError(404, "User not found");
+//         }
+
+//         // Generate new access and refresh tokens for the user
+//         const accessToken = user.generateAccessToken();  // Assuming generateAccessToken is a method in your User model
+//         const refreshToken = user.generateRefreshToken();  // Assuming generateRefreshToken is a method in your User model
+
+//         // Save the new refresh token in the user's document
+//         user.refreshToken = refreshToken;
+//         await user.save({ validateBeforeSave: false });
+
+//         const accessTokenOptions = {
+//             httpOnly: true, // Prevents client-side JS access
+//             secure: process.env.NODE_ENV === 'production', // **IMPORTANT**: Only set 'secure' in production (HTTPS)
+//             sameSite: process.env.NODE_ENV === 'production' ? 'None' : 'Lax', // 'None' for cross-origin (needs secure=true), 'Lax' for same-origin or top-level navigation
+//             maxAge: 1000 * 60 * 15 // 15 minutes (match access token expiry)
+//         };
+    
+//         const refreshTokenOptions = {
+//             ...accessTokenOptions, // Inherit httpOnly, secure, sameSite
+//             maxAge: 1000 * 60 * 60 * 24 * 10 // 10 days (match refresh token expiry)
+//         };
+
+//         // Return the generated tokens in the response
+//         return res
+//         .status(200)
+//         .cookie("accessToken", accessToken, accessTokenOptions) // Set access token cookie
+//         .cookie("refreshToken", refreshToken, refreshTokenOptions) // Set refresh token cookie
+//         .json(
+//             new ApiResponse(
+//                 200,
+//                 {
+//                     user: loggedInUserDetails,
+//                     // !! REMOVED accessToken from response body - rely on the cookie !!
+//                     // refreshToken was already correctly omitted from body
+//                 },
+//                 "User logged in successfully"
+//             )
+//         );
+//     } catch (error) {
+//         console.error("Error during login with temporary token:", error);
+//         throw new ApiError(500, "Something went wrong while logging in with temporary token");
+//     }
+// });
 
 
 
@@ -522,6 +666,123 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 
 
 
+// --- Helper Function for Email Sending (Optional but Recommended) ---
+const sendEmail = async (options) => {
+    // 1. Create a transporter (object that sends email)
+    //    Configure based on your chosen service (using .env variables)
+    const transporter = nodemailer.createTransport({
+        // service: process.env.EMAIL_SERVICE, // Can use service name for common ones (like 'gmail')
+        host: process.env.EMAIL_HOST,
+        port: process.env.EMAIL_PORT,
+        secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports like 587
+        auth: {
+            user: process.env.EMAIL_USER, // Your email address
+            pass: process.env.EMAIL_PASS, // Your email password or app password
+        },
+        // For local development with self-signed certs, you might need:
+        // tls: { rejectUnauthorized: false }
+    });
+
+    // 2. Define the email options
+    const mailOptions = {
+        from: process.env.EMAIL_FROM, // Sender address (defined in .env)
+        to: options.email,            // Recipient address
+        subject: options.subject,     // Subject line
+        text: options.message,        // Plain text body
+        // html: '<b>Hello world?</b>' // You can also add HTML content
+    };
+
+    // 3. Actually send the email
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log('Email sent successfully.');
+    } catch (error) {
+        console.error('Error sending email:', error);
+        
+    }
+};
+// --- End Helper Function ---
+
+
+const forgetPassword1 = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        // Use ApiError if you have it, otherwise just send status
+        // throw new ApiError(400, "Please provide Email");
+        return res.status(400).json(new ApiResponse(400, {}, "Please provide Email"));
+    }
+
+    // 1. Find user by email
+    const user = await User.findOne({ email });
+
+    // IMPORTANT: Security Measure!
+    // Even if the user is NOT found, send a generic success response.
+    // This prevents attackers from guessing which emails are registered.
+    if (!user) {
+        console.log(`Password reset requested for non-existent email: ${email}`);
+        return res.status(200).json(new ApiResponse(200, {}, "If your email is registered, you will receive a password reset link."));
+    }
+
+    // 2. Generate a random reset token
+    const resetToken = crypto.randomBytes(32).toString('hex'); // Generate secure token
+
+    // 3. Hash the token and set it on the user model (store the hash, not the plain token)
+    //    The token sent to the user is the plain one. We compare its hash later.
+    user.passwordResetToken = crypto
+        .createHash('sha256')
+        .update(resetToken)
+        .digest('hex');
+
+    // 4. Set token expiry (e.g., 10 minutes)
+    user.passwordResetTokenExpires = Date.now() + 10 * 60 * 1000; // 10 minutes from now
+
+    try {
+        // Save the user with the token and expiry date
+        await user.save({ validateBeforeSave: false }); // Skip validation if needed for temp fields
+
+        // 5. Create the reset URL (points to your frontend)
+        const resetURL = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`; // Pass the PLAIN token
+
+        // 6. Prepare the email message
+        const message = `
+You are receiving this email because you (or someone else) have requested the reset of a password for your account.
+Please click on the following link, or paste this into your browser to complete the process:
+${resetURL}
+This link will expire in 10 minutes.
+If you did not request this, please ignore this email and your password will remain unchanged.
+`;
+
+        // 7. Send the email using the helper function
+        await sendEmail({
+            email: user.email,
+            subject: 'Your Password Reset Token (valid for 10 min)',
+            message,
+        });
+
+        // 8. Send success response to the client
+        return res.status(200).json(new ApiResponse(200, {}, "Password reset token sent to email successfully."));
+
+    } catch (err) {
+        console.error("Error during password reset process:", err);
+        // Clear the token fields if saving failed or email sending failed critically
+        user.passwordResetToken = undefined;
+        user.passwordResetTokenExpires = undefined;
+        // Try to save the cleared fields (optional, depends on error handling strategy)
+        try {
+            await user.save({ validateBeforeSave: false });
+        } catch (saveError) {
+            console.error("Error clearing reset token after failure:", saveError);
+        }
+
+        // Use ApiError or standard response
+        // throw new ApiError(500, "There was an error sending the password reset email. Please try again later.");
+        return res.status(500).json(new ApiResponse(500, { error: err.message }, "Error sending password reset email."));
+    }
+});
+
+
+
 
 const forgetPassword = asyncHandler(async (req, res)=>{
     const {email} = req.body
@@ -644,5 +905,6 @@ export { registerUser,
     uploadVideo,
     googleAuth,
     checkPassword,
-    forgetPassword
+    forgetPassword,
+    forgetPassword1
  };

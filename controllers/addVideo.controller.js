@@ -468,7 +468,7 @@ const addQnas = asyncHandler(async (req, res) => {
 
 const addFormatedQnas = asyncHandler(async (req, res) => {
   const { id, formattedQuizData } = req.body; // Extract video ID and formatted quiz data
-
+  // console.log("The formated quiz:", formattedQuizData, id)
   try {
       // Find the video by ID
       const video = await Video.findById(id);

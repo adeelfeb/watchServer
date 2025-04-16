@@ -904,5 +904,5 @@ export { registerUser,
     googleAuth,
     checkPassword,
     forgetPassword,
-    forgetPassword1
+    // forgetPassword1
  };

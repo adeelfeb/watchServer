@@ -220,77 +220,6 @@ const DeleteVideo = asyncHandler(async (req, res) => {
 });
 
 
-
-// const addTranscript = asyncHandler(async (req, res) => {
-//     const { id, english, original } = req.body;
-//   console.log("inside the transcript:", req.body)
-//     try {
-//         const video = await Video.findById(id);
-
-//         if (!video) {
-//             return res.status(404).json({ message: "Video not found" });
-//         }
-
-//         if (!video.transcript) {
-//             video.transcript = {};
-//         }
-
-//         // Save the original transcript to the database
-//         if (original && Array.isArray(original)) {
-//             video.transcript.original = original
-//                 .filter(item => Array.isArray(item.timestamp) && item.text)
-//                 .map(item => ({
-//                     timestamp: item.timestamp,
-//                     text: item.text,
-//                 }));
-//         }
-
-//         // Save the English transcript to the database
-//         if (english && Array.isArray(english)) {
-//             video.transcript.english = english
-//                 .filter(item => Array.isArray(item.timestamp) && item.text)
-//                 .map(item => ({
-//                     timestamp: item.timestamp,
-//                     text: item.text,
-//                 }));
-//         }
-
-//         await video.save();
-//         // console.log("Transcript saved to database.");
-
-//         // Respond to the client before running async tasks
-//         res.status(200).json({
-//             message: "Transcript updated successfully",
-//         });
-
-//         // Only vectorize the English transcript (skip the original transcript)
-//         if (!video.transcript.english || video.transcript.english.length === 0) {
-//             // console.log(`No English transcript for video ID ${id}, skipping vectorization.`);
-//             return;
-//         }
-
-//         const fullTranscript = video.transcript.english.map(item => item.text).join(" ");
-
-//         // Run vectorization in the background using only the English transcript
-//         parseAndStoreInPinecone(fullTranscript, id)
-//             .then(() => {
-//                 // console.log(`Transcript for video ID ${id} successfully vectorized and stored in Pinecone.`);
-//             })
-//             .catch((error) => {
-//                 console.error(`Error vectorizing transcript for video ID ${id}:`, error.message);
-//             });
-
-//     } catch (error) {
-//         console.error("Error updating transcript:", error.message);
-
-//         if (!res.headersSent) {
-//             res.status(500).json({ message: "Failed to update transcript", error: error.message });
-//         }
-//     }
-// });
-
-
-
 const addSummary = asyncHandler(async (req, res) => {
     const { id, original, english, Summary_eng } = req.body; 
     // console.log("Received Summary:", Summary_eng); 
@@ -364,11 +293,8 @@ const addKeyconcept = asyncHandler(async (req, res) => {
       });
     }
   });
-  
 
   
-
-
 const addAssesment = asyncHandler(async (req, res) => {
   const { id, description } = req.body; // Assuming you're only sending primary and description
 
@@ -627,4 +553,3 @@ export {
     setScore,
     overLimit
  };
- 

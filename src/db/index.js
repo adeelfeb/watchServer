@@ -3,7 +3,7 @@ import { DB_NAME } from "../constants.js";
 
 const connectDB = async () => {
     const atlasURI = process.env.MONGODB_URI;
-    const dockerURI = "mongodb://admin:password@localhost:27017/";
+    const local_MongoDB_URL = "mongodb://127.0.0.1:27017/";
 
     try {
         // console.log("🔄 Attempting to connect to MongoDB Atlas...");
@@ -13,21 +13,19 @@ const connectDB = async () => {
         });
         console.log(`✅ Connected to MongoDB Atlas at ${connectionInstance.connection.host}`);
     } catch (atlasError) {
-        console.warn("⚠️ Failed to connect to MongoDB Atlas, trying Docker container...");
+        console.warn("⚠️ Failed to connect to MongoDB Atlas, trying local connection...");
 
         // Close previous failed connection before retrying
         await mongoose.disconnect();
 
         try {
-            const dockerConnection = await mongoose.connect(dockerURI, {
+            const localConnection = await mongoose.connect(local_MongoDB_URL, {
                 dbName: DB_NAME,
-                user: "admin",
-                pass: "password",
                 serverSelectionTimeoutMS: 5000,
             });
-            console.log(`✅ Connected to MongoDB Docker at ${dockerConnection.connection.host}`);
-        } catch (dockerError) {
-            console.error("❌ Both MongoDB Atlas and Docker container connection failed", dockerError);
+            console.log(`✅ Connected to MongoDB local at ${localConnection.connection.host}`);
+        } catch (LocalError) {
+            console.error("❌ Both MongoDB Atlas and local connection failed: ", LocalError);
             process.exit(1);
         }
     }

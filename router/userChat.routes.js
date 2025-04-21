@@ -10,11 +10,6 @@ import { verifyJWT } from "../middlewares/auth.middleware.js";
 const router = Router();
 
 
-
-
-
-
-
 // New route for file upload and saving the uplaoded url of file and the specific encoded data
 router.route("/add-file-data").post(verifyJWT, addFileData);
 router.route("/get-vector").post(verifyJWT, getVectorData);

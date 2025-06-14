@@ -11,6 +11,44 @@ This is the backend server for the **YouTube Video Summarizer** project. It hand
 - 📂 **Uploading User Avatars & Cover Images**
 - 📊 **Watch History & Video Tracking**
 
+
+## 🛠️ Installation & Setup
+
+1️⃣ **Clone the repository**
+```sh
+ git clone https://github.com/adeelfeb/watchServer
+ cd yourRepoName
+```
+
+2️⃣ **Install dependencies**
+```sh
+ npm install
+```
+
+3️⃣ **Create a `.env` file and add the following environment variables:**
+
+check **conf.js** inside the /src/conf.js folder
+
+
+4️⃣ **Run the backend server**
+```sh
+ npm run dev
+```
+
+---
+
+## 🎯 Features
+✅ Secure authentication & authorization using JWT
+✅ Multer file upload handling (avatars, cover images)
+✅ Middleware for protected routes
+✅ Integration with Flask API for transcript processing
+✅ Dynamic CORS origin handling
+✅ Express-session & Passport.js for session management
+✅ Error handling & logging
+
+---
+
+
 ## 🏗️ Tech Stack
 - **Backend Framework**: Express.js
 - **Database**: MongoDB with Mongoose
@@ -58,41 +96,6 @@ This is the backend server for the **YouTube Video Summarizer** project. It hand
 
 ---
 
-## 🛠️ Installation & Setup
-
-1️⃣ **Clone the repository**
-```sh
- git clone https://github.com/your-repo-name.git
- cd your-repo-name
-```
-
-2️⃣ **Install dependencies**
-```sh
- npm install
-```
-
-3️⃣ **Create a `.env` file and add the following environment variables:**
-
-check **conf.js** inside the /src/conf.js folder
-
-
-4️⃣ **Run the backend server**
-```sh
- npm run dev
-```
-
----
-
-## 🎯 Features
-✅ Secure authentication & authorization using JWT
-✅ Multer file upload handling (avatars, cover images)
-✅ Middleware for protected routes
-✅ Integration with Flask API for transcript processing
-✅ Dynamic CORS origin handling
-✅ Express-session & Passport.js for session management
-✅ Error handling & logging
-
----
 
 ## 🏗️ Folder Structure
 ```

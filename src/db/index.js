@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { DB_NAME } from "../constants.js";
 
 const connectDB = async () => {
-    const atlasURI = process.env.MONGODB_URI; // it will be like this MONGODB_URI=mongodb+srv://user:temp@cluster1.5zf3c.mongodb.net in the .env file
+    const atlasURI = process.env.MONGODB_URI;
     const local_MongoDB_URL = "mongodb://127.0.0.1:27017/";
 
     try {

@@ -37,3 +37,6 @@ const upload = multer({
 });
 
 export { upload };
+
+
+// using multer for the next project taking this code and altering accordingly
